@@ -7,7 +7,7 @@
   xsi:type="MailApp">
 
   <!-- ===================== IDENTITAT ===================== -->
-  <Id>00000000-0000-0000-0000-000000000001</Id>
+  <Id>5017b0d9-b868-409a-88e4-8df38ec6f4d4</Id>
   <Version>1.0.0.0</Version>
   <ProviderName>TaskFlow</ProviderName>
   <DefaultLocale>ca-ES</DefaultLocale>
@@ -15,9 +15,9 @@
   <Description DefaultValue="Gestiona tasques directament des dels teus correus electrònics."/>
 
   <!-- ===================== ICONES ===================== -->
-  <IconUrl DefaultValue="https://localhost:3000/assets/icon-64.png"/>
-  <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/icon-128.png"/>
-  <SupportUrl DefaultValue="https://localhost:3000/support"/>
+  <IconUrl DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-64.png"/>
+  <HighResolutionIconUrl DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-128.png"/>
+  <SupportUrl DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/support.html"/>
 
   <!-- ===================== PERMISOS ===================== -->
   <Permissions>ReadWriteItem</Permissions>
@@ -81,14 +81,14 @@
     <!-- ===================== RECURSOS ===================== -->
     <Resources>
       <bt:Images>
-        <bt:Image id="Icon.16x16" DefaultValue="https://localhost:3000/assets/icon-16.png"/>
-        <bt:Image id="Icon.32x32" DefaultValue="https://localhost:3000/assets/icon-32.png"/>
-        <bt:Image id="Icon.80x80" DefaultValue="https://localhost:3000/assets/icon-80.png"/>
+        <bt:Image id="Icon.16x16" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-16.png"/>
+        <bt:Image id="Icon.32x32" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-32.png"/>
+        <bt:Image id="Icon.80x80" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-80.png"/>
       </bt:Images>
 
       <bt:Urls>
-        <bt:Url id="FunctionFile.Url"  DefaultValue="https://localhost:3000/functions.html"/>
-        <bt:Url id="Taskpane.Url"      DefaultValue="https://localhost:3000/Panel_Addon.html"/>
+        <bt:Url id="FunctionFile.Url"  DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/functions.html"/>
+        <bt:Url id="Taskpane.Url"      DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/Panel_Addon.html"/>
       </bt:Urls>
 
       <bt:ShortStrings>
