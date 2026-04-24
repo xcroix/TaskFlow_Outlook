@@ -6,17 +6,18 @@
   xmlns:mailappor="http://schemas.microsoft.com/office/mailappversionoverrides/1.0"
   xsi:type="MailApp">
 
-  <Id>80cee285-88c4-4df8-a5dd-e89ffb62e1b8</Id>
+  <Id>b92b0759-6965-4164-a02e-b41cebd40de6</Id>
   <Version>10.0.0</Version>
   <ProviderName>Xavier Croix</ProviderName>
   <DefaultLocale>ca-ES</DefaultLocale>
 
   <DisplayName DefaultValue="TaskFlow"/>
-  <Description DefaultValue="Gestio de tasques directament des d'Outlook."/>
+  <Description DefaultValue="Gestio de tasques directament des d Outlook."/>
 
-  <IconUrl DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-64.png"/>
+  <!-- Icones temporals publiques garantides -->
+  <IconUrl DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-128.png"/>
   <HighResolutionIconUrl DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-128.png"/>
-  <SupportUrl DefaultValue="https://github.com/xcroix/TaskFlow_Outlook"/>
+  <SupportUrl DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/index.html"/>
 
   <Hosts>
     <Host Name="Mailbox"/>
@@ -90,6 +91,7 @@
 
     <Resources>
       <bt:Images>
+        <!-- Icones temporals - substitueix per les teves quan les tinguis -->
         <bt:Image id="Icon.16x16" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-16.png"/>
         <bt:Image id="Icon.32x32" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-32.png"/>
         <bt:Image id="Icon.80x80" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-80.png"/>
@@ -98,7 +100,7 @@
 
       <bt:Urls>
         <bt:Url id="TaskFlow.App.Url" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/index.html"/>
-        <bt:Url id="Commands.Url" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/index.html"/>
+        <bt:Url id="Commands.Url" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/commands.html"/>
       </bt:Urls>
 
       <bt:ShortStrings>
@@ -107,7 +109,7 @@
       </bt:ShortStrings>
 
       <bt:LongStrings>
-        <bt:String id="TaskFlow.Button.Tooltip" DefaultValue="Gestiona tasques des d'aquest correu"/>
+        <bt:String id="TaskFlow.Button.Tooltip" DefaultValue="Gestiona tasques des d aquest correu"/>
       </bt:LongStrings>
     </Resources>
 
