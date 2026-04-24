@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <OfficeApp
   xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -6,29 +6,57 @@
   xmlns:mailappor="http://schemas.microsoft.com/office/mailappversionoverrides/1.0"
   xsi:type="MailApp">
 
-  <!-- ===================== IDENTITAT ===================== -->
-  <Id>5017b0d9-b868-409a-88e4-8df38ec6f4d4</Id>
-  <Version>1.0.0.0</Version>
-  <ProviderName>TaskFlow</ProviderName>
+  <!-- Identitat -->
+  <Id>PUT-YOUR-GUID-HERE</Id>
+  <Version>1.0.0</Version>
+  <ProviderName>Xavier Croix</ProviderName>
   <DefaultLocale>ca-ES</DefaultLocale>
-  <DisplayName DefaultValue="Task Flow for Outlook"/>
-  <Description DefaultValue="Gestiona tasques directament des dels teus correus electrònics."/>
 
-  <!-- ===================== ICONES ===================== -->
-  <IconUrl DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-64.png"/>
-  <HighResolutionIconUrl DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-128.png"/>
-  <SupportUrl DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/support.html"/>
+  <DisplayName DefaultValue="TaskFlow"/>
+  <Description DefaultValue="Gestió de tasques, seguiment i relacionats directament des d’Outlook."/>
 
-  <!-- ===================== PERMISOS ===================== -->
+  <!-- Branding -->
+  <IconUrl DefaultValue="https://github.com/xcroix/TaskFlow_Outlook/assets/icon-64.png"/>
+  <HighResolutionIconUrl DefaultValue="https://github.com/xcroix/TaskFlow_Outlook/icon-128.png"/>
+  <SupportUrl DefaultValue="https://github.com/xcroix/TaskFlow_Outlook"/>
+
+  <!-- Host -->
+  <Hosts>
+    <Host Name="Mailbox"/>
+  </Hosts>
+
+  <!-- Requisits API -->
+  <Requirements>
+    <Sets>
+      <Set Name="Mailbox" MinVersion="1.3"/>
+    </Sets>
+  </Requirements>
+
+  <!-- Panell (Task Pane) -->
+  <FormSettings>
+    <Form xsi:type="ItemRead">
+      <DesktopSettings>
+        <SourceLocation DefaultValue="https://github.com/xcroix/TaskFlow_Outlook/index.html"/>
+        <RequestedHeight>600</RequestedHeight>
+      </DesktopSettings>
+    </Form>
+  </FormSettings>
+
+  <!-- Permisos -->
   <Permissions>ReadWriteItem</Permissions>
 
-  <!-- ===================== REGLES D'ACTIVACIÓ (llegat) ===================== -->
+  <!-- Regles d’activació -->
   <Rule xsi:type="RuleCollection" Mode="Or">
-    <Rule xsi:type="ItemIs" ItemType="Message" FormType="ReadOrEdit"/>
+    <Rule xsi:type="ItemIs" ItemType="Message" FormType="Read"/>
   </Rule>
 
-  <!-- ===================== OVERRIDES DE VERSIÓ ===================== -->
-  <VersionOverrides xmlns="http://schemas.microsoft.com/office/mailappversionoverrides" xsi:type="VersionOverridesV1_0">
+  <DisableEntityHighlighting>false</DisableEntityHighlighting>
+
+  <!-- Overrides (ribbon modern) -->
+  <VersionOverrides
+    xmlns="http://schemas.microsoft.com/office/mailappversionoverrides"
+    xsi:type="VersionOverridesV1_0">
+
     <Requirements>
       <bt:Sets DefaultMinVersion="1.3">
         <bt:Set Name="Mailbox"/>
@@ -37,27 +65,21 @@
 
     <Hosts>
       <Host xsi:type="MailHost">
-
-        <!-- Panel lateral (lectura d'email) -->
         <DesktopFormFactor>
-          <FunctionFile resid="FunctionFile.Url"/>
 
+          <FunctionFile resid="Commands.Url"/>
+
+          <!-- Botó a la lectura de correus -->
           <ExtensionPoint xsi:type="MessageReadCommandSurface">
             <OfficeTab id="TabDefault">
               <Group id="TaskFlow.Group">
-                <Label resid="GroupLabel"/>
-                <Icon>
-                  <bt:Image size="16" resid="Icon.16x16"/>
-                  <bt:Image size="32" resid="Icon.32x32"/>
-                  <bt:Image size="80" resid="Icon.80x80"/>
-                </Icon>
+                <Label resid="TaskFlow.Group.Label"/>
 
-                <!-- Botó principal: obrir panel -->
-                <Control xsi:type="Button" id="TaskFlow.OpenPane">
-                  <Label resid="TaskPaneButton.Label"/>
+                <Control xsi:type="Button" id="TaskFlow.Button">
+                  <Label resid="TaskFlow.Button.Label"/>
                   <Supertip>
-                    <Title resid="TaskPaneButton.Label"/>
-                    <Description resid="TaskPaneButton.Tooltip"/>
+                    <Title resid="TaskFlow.Button.Label"/>
+                    <Description resid="TaskFlow.Button.Tooltip"/>
                   </Supertip>
                   <Icon>
                     <bt:Image size="16" resid="Icon.16x16"/>
@@ -65,43 +87,43 @@
                     <bt:Image size="80" resid="Icon.80x80"/>
                   </Icon>
                   <Action xsi:type="ShowTaskpane">
-                    <TaskpaneId>TaskFlowPane</TaskpaneId>
-                    <SourceLocation resid="Taskpane.Url"/>
+                    <SourceLocation resid="TaskFlow.App.Url"/>
                   </Action>
                 </Control>
 
               </Group>
             </OfficeTab>
           </ExtensionPoint>
-        </DesktopFormFactor>
 
+        </DesktopFormFactor>
       </Host>
     </Hosts>
 
-    <!-- ===================== RECURSOS ===================== -->
+    <!-- Recursos -->
     <Resources>
       <bt:Images>
-        <bt:Image id="Icon.16x16" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-16.png"/>
-        <bt:Image id="Icon.32x32" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-32.png"/>
-        <bt:Image id="Icon.80x80" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-80.png"/>
+        <bt:Image id="Icon.16x16" DefaultValue="https://github.com/xcroix/TaskFlow_Outlook/assets/icon-16.png"/>
+        <bt:Image id="Icon.32x32" DefaultValue="https://github.com/xcroix/TaskFlow_Outlook/assets/icon-32.png"/>
+        <bt:Image id="Icon.80x80" DefaultValue="https://github.com/xcroix/TaskFlow_Outlook/assets/icon-80.png"/>
+        <bt:Image id="Icon.128x128" DefaultValue="https://github.com/xcroix/TaskFlow_Outlook/assets/icon-128.png"/>
       </bt:Images>
 
       <bt:Urls>
-        <bt:Url id="FunctionFile.Url"  DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/functions.html"/>
-        <bt:Url id="Taskpane.Url"      DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/Panel_Addon.html"/>
+        <bt:Url id="TaskFlow.App.Url" DefaultValue="https://github.com/xcroix/TaskFlow_Outlook/index.html"/>
+        <bt:Url id="Commands.Url" DefaultValue="https://github.com/xcroix/TaskFlow_Outlook/commands.html"/>
       </bt:Urls>
 
       <bt:ShortStrings>
-        <bt:String id="GroupLabel"             DefaultValue="Task Flow"/>
-        <bt:String id="TaskPaneButton.Label"   DefaultValue="Gestionar Tasca"/>
-        <bt:String id="TaskPaneButton.Tooltip" DefaultValue="Crea o visualitza la tasca associada a aquest correu."/>
+        <bt:String id="TaskFlow.Group.Label" DefaultValue="TaskFlow"/>
+        <bt:String id="TaskFlow.Button.Label" DefaultValue="Obrir TaskFlow"/>
       </bt:ShortStrings>
 
       <bt:LongStrings>
-        <bt:String id="TaskPaneButton.Tooltip" DefaultValue="Obre el panell de Task Flow per crear o veure la tasca vinculada a aquest correu electrònic."/>
+        <bt:String
+          id="TaskFlow.Button.Tooltip"
+          DefaultValue="Gestiona tasques i seguiments relacionats amb aquest correu"/>
       </bt:LongStrings>
     </Resources>
 
   </VersionOverrides>
-
 </OfficeApp>
