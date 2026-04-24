@@ -6,33 +6,28 @@
   xmlns:mailappor="http://schemas.microsoft.com/office/mailappversionoverrides/1.0"
   xsi:type="MailApp">
 
-  <!-- Identitat -->
-  <Id>7be0634c-74d4-415d-9324-cfc923130220</Id>
+  <Id>80cee285-88c4-4df8-a5dd-e89ffb62e1b8</Id>
   <Version>10.0.0</Version>
   <ProviderName>Xavier Croix</ProviderName>
   <DefaultLocale>ca-ES</DefaultLocale>
 
   <DisplayName DefaultValue="TaskFlow"/>
-  <Description DefaultValue="Gestió de tasques, seguiment i relacionats directament des d'Outlook."/>
+  <Description DefaultValue="Gestio de tasques directament des d'Outlook."/>
 
-  <!-- Branding -->
   <IconUrl DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-64.png"/>
   <HighResolutionIconUrl DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-128.png"/>
   <SupportUrl DefaultValue="https://github.com/xcroix/TaskFlow_Outlook"/>
 
-  <!-- Host -->
   <Hosts>
     <Host Name="Mailbox"/>
   </Hosts>
 
-  <!-- Requisits API -->
   <Requirements>
     <Sets>
       <Set Name="Mailbox" MinVersion="1.3"/>
     </Sets>
   </Requirements>
 
-  <!-- Panell (Task Pane) -->
   <FormSettings>
     <Form xsi:type="ItemRead">
       <DesktopSettings>
@@ -42,17 +37,14 @@
     </Form>
   </FormSettings>
 
-  <!-- Permisos -->
   <Permissions>ReadWriteItem</Permissions>
 
-  <!-- Regles d'activació -->
   <Rule xsi:type="RuleCollection" Mode="Or">
     <Rule xsi:type="ItemIs" ItemType="Message" FormType="Read"/>
   </Rule>
 
   <DisableEntityHighlighting>false</DisableEntityHighlighting>
 
-  <!-- Overrides (ribbon modern) -->
   <VersionOverrides
     xmlns="http://schemas.microsoft.com/office/mailappversionoverrides"
     xsi:type="VersionOverridesV1_0">
@@ -69,12 +61,10 @@
 
           <FunctionFile resid="Commands.Url"/>
 
-          <!-- Botó a la lectura de correus -->
           <ExtensionPoint xsi:type="MessageReadCommandSurface">
             <OfficeTab id="TabDefault">
               <Group id="TaskFlow.Group">
                 <Label resid="TaskFlow.Group.Label"/>
-
                 <Control xsi:type="Button" id="TaskFlow.Button">
                   <Label resid="TaskFlow.Button.Label"/>
                   <Supertip>
@@ -90,7 +80,6 @@
                     <SourceLocation resid="TaskFlow.App.Url"/>
                   </Action>
                 </Control>
-
               </Group>
             </OfficeTab>
           </ExtensionPoint>
@@ -99,7 +88,6 @@
       </Host>
     </Hosts>
 
-    <!-- Recursos -->
     <Resources>
       <bt:Images>
         <bt:Image id="Icon.16x16" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-16.png"/>
@@ -119,9 +107,7 @@
       </bt:ShortStrings>
 
       <bt:LongStrings>
-        <bt:String
-          id="TaskFlow.Button.Tooltip"
-          DefaultValue="Gestiona tasques i seguiments relacionats amb aquest correu"/>
+        <bt:String id="TaskFlow.Button.Tooltip" DefaultValue="Gestiona tasques des d'aquest correu"/>
       </bt:LongStrings>
     </Resources>
 
