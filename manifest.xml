@@ -7,17 +7,17 @@
   xsi:type="MailApp">
 
   <!-- Identitat -->
-  <Id>PUT-YOUR-GUID-HERE</Id>
-  <Version>1.0.0</Version>
+  <Id>7be0634c-74d4-415d-9324-cfc923130220</Id>
+  <Version>10.0.0</Version>
   <ProviderName>Xavier Croix</ProviderName>
   <DefaultLocale>ca-ES</DefaultLocale>
 
   <DisplayName DefaultValue="TaskFlow"/>
-  <Description DefaultValue="Gestió de tasques, seguiment i relacionats directament des d’Outlook."/>
+  <Description DefaultValue="Gestió de tasques, seguiment i relacionats directament des d'Outlook."/>
 
   <!-- Branding -->
-  <IconUrl DefaultValue="https://github.com/xcroix/TaskFlow_Outlook/assets/icon-64.png"/>
-  <HighResolutionIconUrl DefaultValue="https://github.com/xcroix/TaskFlow_Outlook/icon-128.png"/>
+  <IconUrl DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-64.png"/>
+  <HighResolutionIconUrl DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-128.png"/>
   <SupportUrl DefaultValue="https://github.com/xcroix/TaskFlow_Outlook"/>
 
   <!-- Host -->
@@ -36,7 +36,7 @@
   <FormSettings>
     <Form xsi:type="ItemRead">
       <DesktopSettings>
-        <SourceLocation DefaultValue="https://github.com/xcroix/TaskFlow_Outlook/index.html"/>
+        <SourceLocation DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/index.html"/>
         <RequestedHeight>600</RequestedHeight>
       </DesktopSettings>
     </Form>
@@ -45,7 +45,7 @@
   <!-- Permisos -->
   <Permissions>ReadWriteItem</Permissions>
 
-  <!-- Regles d’activació -->
+  <!-- Regles d'activació -->
   <Rule xsi:type="RuleCollection" Mode="Or">
     <Rule xsi:type="ItemIs" ItemType="Message" FormType="Read"/>
   </Rule>
@@ -102,15 +102,15 @@
     <!-- Recursos -->
     <Resources>
       <bt:Images>
-        <bt:Image id="Icon.16x16" DefaultValue="https://github.com/xcroix/TaskFlow_Outlook/assets/icon-16.png"/>
-        <bt:Image id="Icon.32x32" DefaultValue="https://github.com/xcroix/TaskFlow_Outlook/assets/icon-32.png"/>
-        <bt:Image id="Icon.80x80" DefaultValue="https://github.com/xcroix/TaskFlow_Outlook/assets/icon-80.png"/>
-        <bt:Image id="Icon.128x128" DefaultValue="https://github.com/xcroix/TaskFlow_Outlook/assets/icon-128.png"/>
+        <bt:Image id="Icon.16x16" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-16.png"/>
+        <bt:Image id="Icon.32x32" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-32.png"/>
+        <bt:Image id="Icon.80x80" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-80.png"/>
+        <bt:Image id="Icon.128x128" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-128.png"/>
       </bt:Images>
 
       <bt:Urls>
-        <bt:Url id="TaskFlow.App.Url" DefaultValue="https://github.com/xcroix/TaskFlow_Outlook/index.html"/>
-        <bt:Url id="Commands.Url" DefaultValue="https://github.com/xcroix/TaskFlow_Outlook/commands.html"/>
+        <bt:Url id="TaskFlow.App.Url" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/index.html"/>
+        <bt:Url id="Commands.Url" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/index.html"/>
       </bt:Urls>
 
       <bt:ShortStrings>
