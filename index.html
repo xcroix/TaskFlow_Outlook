@@ -43,6 +43,35 @@
     } catch (e) {
       console.warn('No email context', e);
     }
+
+    // Suport per a task pane ancorat (SupportsPinning):
+    // quan l'usuari canvia de correu sense tancar el panell, recarreguem el context.
+    try {
+      Office.context.mailbox.addHandlerAsync(
+        Office.EventType.ItemChanged,
+        async function () {
+          try {
+            const item = Office.context.mailbox.item;
+            if (item) {
+              currentEmailContext = {
+                subject: item.subject || null,
+                from: item.from?.emailAddress?.address || null,
+                internetMessageId: item.internetMessageId || null
+              };
+              await tfLoadEmailFromOffice();
+            } else {
+              currentEmailContext = null;
+              CURRENT_EMAIL = null;
+            }
+          } catch (e) {
+            console.warn('[TaskFlow] ItemChanged error', e);
+          }
+          try { render(); } catch (e) {}
+        }
+      );
+    } catch (e) {
+      console.warn('[TaskFlow] addHandlerAsync not available', e);
+    }
   });
 </script>
 <!-- === END OUTLOOK SAFE PATCH === -->
