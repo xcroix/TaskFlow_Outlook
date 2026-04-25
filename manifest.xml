@@ -33,7 +33,7 @@
     <Form xsi:type="ItemRead">
       <DesktopSettings>
         <SourceLocation DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/index.html"/>
-        <RequestedHeight>500</RequestedHeight>
+        <RequestedHeight>250</RequestedHeight>
       </DesktopSettings>
     </Form>
   </FormSettings>
