@@ -206,6 +206,8 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);margin:0;pa
 .pvtype{font-size:11px;color:var(--t3)}
 .bk{display:none;position:absolute;inset:0;background:rgba(0,0,0,.32);z-index:19;border-radius:24px}
 .bk.open{display:block}
+#qa-drop{position:absolute;left:10px;right:10px;z-index:21;background:var(--sf);border:1px solid var(--bd);border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.16);display:none;overflow:hidden}
+#qa-drop.open{display:block}
 .hdr{background:var(--sf);border-bottom:1px solid var(--bd);padding:14px 16px;flex-shrink:0;position:relative}
 .hdr-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .header-actions{display:flex;align-items:center;gap:6px;position:relative}
@@ -256,6 +258,16 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);margin:0;pa
 .qa-email-subj{font-size:12px;font-weight:700;color:var(--t);line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .qa-email-from{font-size:11px;color:var(--t2);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .qa-email-date{font-size:10px;color:var(--t3);margin-left:auto;flex-shrink:0;padding-left:8px}
+.email-panel{border-bottom:1px solid var(--bd);background:var(--sf);flex-shrink:0}
+.email-panel-body{padding:10px 12px 0}
+.email-panel-subj{font-size:11px;font-weight:700;color:var(--t);line-height:1.3;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:2px}
+.email-panel-meta{font-size:10px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:8px}
+.email-panel-badge-row{display:flex;flex-wrap:wrap;gap:4px;padding-bottom:10px}
+.email-panel-actions{border-top:1px solid var(--bd)}
+.email-panel .qa-item{padding:9px 12px}
+.email-panel .qa-ico{width:26px;height:26px;border-radius:8px;font-size:13px}
+.email-panel .qa-title{font-size:11px}
+.email-panel .qa-sub{font-size:10px}
 .link-wrap{padding:12px 16px}
 .link-search{width:100%;padding:8px 10px;border-radius:9px;border:1px solid var(--bd);background:var(--sf2);font-size:12px;font-weight:500;font-family:'Plus Jakarta Sans',sans-serif;color:var(--t);outline:none}
 .link-search:focus{border-color:var(--ac)}
@@ -317,7 +329,6 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);margin:0;pa
  </div>
  <div class="header-actions">
  <button class="btn-menu" onclick="toggleSecondaryMenu(event)" id="btn-menu" aria-label="Menú secundari" title="Menú secundari" aria-haspopup="menu" aria-expanded="false" aria-controls="sec-menu">⋯</button>
- <button class="btn-plus" onclick="openQuickActions()" id="btn-plus-qa" aria-label="Accions ràpides" title="Accions ràpides">＋</button>
  <div class="sec-menu" id="sec-menu" role="menu" aria-labelledby="btn-menu">
  <button class="sec-menu-item" role="menuitem" onclick="cycleLang();closeSecondaryMenu()">
  <span class="sec-menu-ico">🌐</span>
@@ -348,6 +359,10 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);margin:0;pa
  <div class="leg-item"><img src="data:image/png;base64,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" style="width:12px;height:12px;object-fit:contain;opacity:.7" alt=""><span data-i18n="LEG_PROVIDERS"></span></div>
  </div>
 </div>
+<!-- EMAIL CONTEXT PANEL -->
+<div id="email-panel"></div>
+<!-- QUICK ACTIONS DROPDOWN -->
+<div id="qa-drop" role="menu" aria-label="Accions ràpides"></div>
 <!-- GROUP SELECTOR -->
 <div class="gbar">
  <span class="gl" data-i18n="GRP_BY"></span>
@@ -1098,6 +1113,7 @@ async function tfLoadEmailFromOffice() {
       }
     }
   } catch(e) { /* Keep fallback */ }
+  try { renderEmailPanel(); } catch(e) {}
 }
 
 async function tfLoadTasksForEmail() {
@@ -1447,6 +1463,7 @@ const collapsedGroups = new Set();
 
 function render() {
   TASKS.forEach(syncTaskFollowupFields);
+  renderEmailPanel();
   const groups = getGroups(cur);
   let html = '';
   groups.forEach((g, i) => {
@@ -1484,6 +1501,7 @@ function setGroup(v) { cur = v; render(); }
 // =============================================================================
 
 function openOv(title, subtitle, content) {
+  closeQaDrop();
   rememberFocusTarget(document.activeElement);
   OV_RETURN_FOCUS_KEY = LAST_FOCUS_KEY;
   OV_RETURN_FOCUS_ID = LAST_FOCUS_ID;
@@ -1502,7 +1520,7 @@ function closeOv() {
   document.getElementById('ov').classList.remove('open');
   document.getElementById('bk').classList.remove('open');
   ['ov-add-cmt','ov-add-tim'].forEach(id => { const el = document.getElementById(id); if (el) el.remove(); });
-  focusByStoredTarget(OV_RETURN_FOCUS_KEY, OV_RETURN_FOCUS_ID, '#btn-plus-qa');
+  focusByStoredTarget(OV_RETURN_FOCUS_KEY, OV_RETURN_FOCUS_ID, '#cnt');
 }
 
 
@@ -1772,25 +1790,63 @@ function saveQeTimeEntry(taskId) {
 // QUICK ACTIONS
 // =============================================================================
 
-function openQuickActions() {
-  closeSecondaryMenu();
+function renderEmailPanel() {
+  const panel = document.getElementById('email-panel');
+  if (!panel) return;
   const ae = getActiveEmail();
+  if (!ae) { panel.innerHTML = ''; return; }
   const linkedTasks = getTasksLinkedToActiveEmail();
   const statusText = getLinkedEmailStatusText(linkedTasks);
   const statusDetail = linkedTasks.length === 1
     ? linkedTasks[0].title
     : linkedTasks.length > 1
-      ? linkedTasks.map(task => task.title).slice(0, 2).join(' · ') + (linkedTasks.length > 2 ? ` +${linkedTasks.length - 2}` : '')
+      ? linkedTasks.map(t => t.title).slice(0,2).join(' · ') + (linkedTasks.length > 2 ? ` +${linkedTasks.length - 2}` : '')
       : '';
+  const fromLine = escapeHtml((ae.fromName ? ae.fromName + ' · ' : '') + (ae.from || ''));
+  const mailIco = '<svg width="13" height="11" viewBox="0 0 13 11" fill="none" style="flex-shrink:0;margin-top:2px;opacity:.55"><rect x=".65" y=".65" width="11.7" height="9.7" rx="1.35" stroke="currentColor" stroke-width="1.3"/><path d="M.65 2.6l5.85 3.9 5.85-3.9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>';
+  panel.innerHTML = `<div style="padding:6px 10px 5px">
+    <div class="card">
+      <div class="ci">
+        <div class="cr1">
+          ${mailIco}
+          <span class="ctit">${escapeHtml(ae.subject || tr('NO_SUBJECT'))}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;padding-left:20px;margin-bottom:5px;flex-wrap:wrap">
+          <span class="it" style="color:var(--t2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${fromLine}</span>
+          ${ae.dateLabel ? `<span class="it" style="color:var(--t3);flex-shrink:0">${escapeHtml(ae.dateLabel)}</span>` : ''}
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;padding-left:20px;flex-wrap:wrap">
+          <span class="link-badge">🔗 ${escapeHtml(statusText)}</span>
+          ${statusDetail ? `<span class="link-badge" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(statusDetail)}</span>` : ''}
+          ${ae.attachmentsLabel ? `<span class="link-badge">📎 ${escapeHtml(ae.attachmentsLabel)}</span>` : ''}
+        </div>
+        <button class="cedit" onclick="openQuickActions()" title="${tr('QUICK_ACTIONS')}" style="font-size:16px;font-weight:700;color:var(--ac)">＋</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function openQuickActions() {
+  closeSecondaryMenu();
+  try { closeOv(); } catch(e) {}
+  const drop = document.getElementById('qa-drop');
+  if (!drop) return;
+
+  // If already open, close it (toggle)
+  if (drop.classList.contains('open')) { closeQaDrop(); return; }
+
+  const ae = getActiveEmail();
+  const linkedTasks = getTasksLinkedToActiveEmail();
+
   const primaryAction = linkedTasks.length
-    ? `<div class="qa-item" onclick="openLinkedTaskEditor()">
+    ? `<div class="qa-item" role="menuitem" tabindex="0" onclick="closeQaDrop();openLinkedTaskEditor()">
         <div class="qa-ico">✏️</div>
         <div class="qa-txt">
           <div class="qa-title">${tr('QA_EDIT')}</div>
           <div class="qa-sub">${tr('QA_EDIT_SUB')}</div>
         </div><div class="qa-go">›</div>
       </div>`
-    : `<div class="qa-item" onclick="openCreateTaskForm()">
+    : `<div class="qa-item" role="menuitem" tabindex="0" onclick="closeQaDrop();openCreateTaskForm()">
         <div class="qa-ico">✅</div>
         <div class="qa-txt">
           <div class="qa-title">${tr('QA_CREATE')}</div>
@@ -1798,55 +1854,52 @@ function openQuickActions() {
         </div><div class="qa-go">›</div>
       </div>`;
 
-  const emailInfo = `
-    <div class="qa-email">
-      <div class="qa-email-label">${tr('EMAIL_ACTIVE')}</div>
-      <div class="qa-email-row" style="cursor:default">
-        <div class="qa-email-dot on"></div>
-        <div class="qa-email-meta">
-          <div class="qa-email-subj">${escapeHtml(ae.subject || tr('NO_SUBJECT'))}</div>
-          <div class="qa-email-from">${escapeHtml((ae.fromName ? ae.fromName + ' · ' : '') + (ae.from || ''))}</div>
-        </div>
-        <div class="qa-email-date">${escapeHtml(ae.dateLabel || '')}</div>
-      </div>
-      <div class="link-hint" style="padding:10px 0 0">
-        <span class="link-badge">🔗 ${escapeHtml(statusText)}</span>
-        ${statusDetail ? `<div style="margin-top:8px;font-size:11px;color:var(--t2)">${escapeHtml(statusDetail)}</div>` : ''}
-        ${ae.attachmentsLabel ? `<div style="margin-top:8px"><span class="link-badge">📎 ${escapeHtml(ae.attachmentsLabel)}</span></div>` : ''}
-      </div>
-    </div>`;
+  drop.innerHTML = `<div class="qa-list">
+    ${primaryAction}
+    <div class="qa-item" role="menuitem" tabindex="0" onclick="closeQaDrop();openLinkTask()">
+      <div class="qa-ico" style="background:var(--sf3);color:var(--t2)">🔗</div>
+      <div class="qa-txt">
+        <div class="qa-title">${tr('QA_LINK')}</div>
+        <div class="qa-sub">${tr('QA_LINK_SUB')}</div>
+      </div><div class="qa-go">›</div>
+    </div>
+    <div class="qa-item" role="menuitem" tabindex="0" onclick="closeQaDrop();openFollowUpOnly()">
+      <div class="qa-ico" style="background:rgba(217,119,6,.12);color:var(--am)">👁️</div>
+      <div class="qa-txt">
+        <div class="qa-title">${tr('QA_FOLLOWUP')}</div>
+        <div class="qa-sub">${tr('QA_FOLLOWUP_SUB')}</div>
+      </div><div class="qa-go">›</div>
+    </div>
+    <div class="qa-item" role="menuitem" tabindex="0" onclick="closeQaDrop();openMeetingFromEmail()">
+      <div class="qa-ico" style="background:rgba(22,163,74,.12);color:var(--color-green)">📅</div>
+      <div class="qa-txt">
+        <div class="qa-title">${tr('QA_MEETING')}</div>
+        <div class="qa-sub">${tr('QA_MEETING_SUB')}</div>
+      </div><div class="qa-go">›</div>
+    </div>
+  </div>`;
 
-  const content = `${emailInfo}
-    <div class="qa-list">
-      ${primaryAction}
-      <div class="qa-item" onclick="openLinkTask()">
-        <div class="qa-ico" style="background:var(--sf3);color:var(--t2)">🔗</div>
-        <div class="qa-txt">
-          <div class="qa-title">${tr('QA_LINK')}</div>
-          <div class="qa-sub">${tr('QA_LINK_SUB')}</div>
-        </div><div class="qa-go">›</div>
-      </div>
-      <div class="qa-item" onclick="openFollowUpOnly()">
-        <div class="qa-ico" style="background:rgba(217,119,6,.12);color:var(--am)">👁️</div>
-        <div class="qa-txt">
-          <div class="qa-title">${tr('QA_FOLLOWUP')}</div>
-          <div class="qa-sub">${tr('QA_FOLLOWUP_SUB')}</div>
-        </div><div class="qa-go">›</div>
-      </div>
-      <div class="qa-item" onclick="openMeetingFromEmail()">
-        <div class="qa-ico" style="background:rgba(22,163,74,.12);color:var(--color-green)">📅</div>
-        <div class="qa-txt">
-          <div class="qa-title">${tr('QA_MEETING')}</div>
-          <div class="qa-sub">${tr('QA_MEETING_SUB')}</div>
-        </div><div class="qa-go">›</div>
-      </div>
-    </div>`;
-  openOv(tr('OV_ACTIONS'), ae.subject || tr('EMAIL_ACTIVE'), content);
+  // Position just below the email-panel card
+  const panel = document.getElementById('email-panel');
+  const phone = document.querySelector('.phone');
+  if (panel && phone) {
+    const panelRect = panel.getBoundingClientRect();
+    const phoneRect = phone.getBoundingClientRect();
+    drop.style.top = (panelRect.bottom - phoneRect.top + 4) + 'px';
+  }
+
+  drop.classList.add('open');
+  // Focus first item for keyboard nav
+  setTimeout(() => {
+    const first = drop.querySelector('[tabindex="0"]');
+    if (first) first.focus();
+  }, 0);
 }
 
-// =============================================================================
-// LINK EMAIL TO EXISTING TASK  (all links stored in RELATIONS)
-// =============================================================================
+function closeQaDrop() {
+  const drop = document.getElementById('qa-drop');
+  if (drop) { drop.classList.remove('open'); drop.innerHTML = ''; }
+}
 
 function openLinkTask() {
   const ae = getActiveEmail();
@@ -3838,8 +3891,10 @@ function handleGlobalKeydown(event) {
     const pop = document.getElementById('qepop');
     const menu = document.getElementById('sec-menu');
     const ov = document.getElementById('ov');
+    const drop = document.getElementById('qa-drop');
     if (pop && pop.classList.contains('open')) { event.preventDefault(); closeQePop(); return; }
     if (menu && menu.classList.contains('open')) { event.preventDefault(); closeSecondaryMenu(); return; }
+    if (drop && drop.classList.contains('open')) { event.preventDefault(); closeQaDrop(); return; }
     if (ov && ov.classList.contains('open')) { event.preventDefault(); closeOv(); return; }
   }
   if (event.key === 'Tab') {
@@ -3853,13 +3908,16 @@ function handleGlobalKeydown(event) {
 }
 document.addEventListener('keydown', handleGlobalKeydown, true);
 
-// Close popover / secondary menu on outside click
+// Close popover / secondary menu / qa-drop on outside click
 document.addEventListener('click', e => { 
  const pop = document.getElementById('qepop'); 
  if (pop && pop.classList.contains('open') && !pop.contains(e.target)) closeQePop();
  const menu = document.getElementById('sec-menu');
  const actions = document.querySelector('.header-actions');
  if (menu && menu.classList.contains('open') && actions && !actions.contains(e.target)) closeSecondaryMenu();
+ const drop = document.getElementById('qa-drop');
+ const panel = document.getElementById('email-panel');
+ if (drop && drop.classList.contains('open') && !drop.contains(e.target) && panel && !panel.contains(e.target)) closeQaDrop();
 }, true);
 
 // =============================================================================
