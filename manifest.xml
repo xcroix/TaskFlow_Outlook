@@ -11,8 +11,8 @@
  <DefaultLocale>ca-ES</DefaultLocale>
  <DisplayName DefaultValue="TaskFlow"/>
  <Description DefaultValue="Gestio de tasques directament des d Outlook."/>
- <IconUrl DefaultValue="https://github.com/xcroix/TaskFlow_Outlook/blob/main/Assets/TaskFlow%20-%2064x64.png"/>
- <HighResolutionIconUrl DefaultValue="https://github.com/xcroix/TaskFlow_Outlook/blob/main/Assets/TaskFlow%20-%20128x128.png"/>
+ <IconUrl DefaultValue="https://github.com/xcroix/TaskFlow_Outlook/Assets/TaskFlow%20-%2064x64.png"/>
+ <HighResolutionIconUrl DefaultValue="https://github.com/xcroix/TaskFlow_Outlook/Assets/TaskFlow%20-%20128x128.png"/>
  <SupportUrl DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/index.html"/>
  <Hosts>
  <Host Name="Mailbox"/>
