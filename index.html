@@ -7370,6 +7370,31 @@ Office?.onReady?.(() => {
 })();
 </script>
 
+
+<!-- === V122 PATCH: Fuerza carga inicial email activo en Outlook === -->
+<script>
+// Comentarios en castellano
+Office && Office.onReady && Office.onReady(async function () {
+  try {
+    if (!Office.context || !Office.context.mailbox) return;
+    if (typeof tfLoadEmailFromOffice === 'function') {
+      await tfLoadEmailFromOffice();
+    }
+    if (!window.CURRENT_EMAIL && Office.context.mailbox.item) {
+      const item = Office.context.mailbox.item;
+      window.CURRENT_EMAIL = {
+        subject: item.subject || '',
+        from: item.from && item.from.emailAddress ? item.from.emailAddress.address : '',
+        internetMessageId: item.internetMessageId || ''
+      };
+    }
+    if (typeof render === 'function') render();
+  } catch (e) {
+    console.warn('[TaskFlow V122] init email load failed', e);
+  }
+});
+</script>
+
 </body>
 </html>
 
