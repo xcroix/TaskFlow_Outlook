@@ -6,7 +6,7 @@
  xmlns:mailappor="http://schemas.microsoft.com/office/mailappversionoverrides/1.0"
  xsi:type="MailApp">
  <Id>b92b0759-6965-4164-a02e-b41cebd40de6</Id>
- <Version>10.0.0</Version>
+ <Version>11.0.0</Version>
  <ProviderName>Xavier Croix</ProviderName>
  <DefaultLocale>ca-ES</DefaultLocale>
  <DisplayName DefaultValue="TaskFlow"/>
@@ -148,6 +148,14 @@
  <bt:String id="TaskFlow.Button.Tooltip" DefaultValue="Gestiona tasques des d aquest correu"/>
  </bt:LongStrings>
  </Resources>
- </VersionOverrides>
+ 
+        <WebApplicationInfo>
+          <Id>436d6a44-4249-47a6-acca-8189cf23242b</Id>
+          <Resource>api://xcroix.github.io/436d6a44-4249-47a6-acca-8189cf23242b</Resource>
+          <Scopes>
+            <Scope>access_as_user</Scope>
+          </Scopes>
+        </WebApplicationInfo>
+</VersionOverrides>
  </VersionOverrides>
 </OfficeApp>
