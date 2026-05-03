@@ -6,7 +6,7 @@
  xmlns:mailappor="http://schemas.microsoft.com/office/mailappversionoverrides/1.0"
  xsi:type="MailApp">
  <Id>b92b0759-6965-4164-a02e-b41cebd40de6</Id>
- <Version>11.0.1</Version>
+ <Version>11.0.2</Version>
  <ProviderName>Xavier Croix</ProviderName>
  <DefaultLocale>ca-ES</DefaultLocale>
  <DisplayName DefaultValue="TaskFlow"/>
@@ -97,8 +97,7 @@
  <Requirements>
  <bt:Sets DefaultMinVersion="1.5">
  <bt:Set Name="Mailbox"/>
- 
-      <bt:Set Name="IdentityAPI" MinVersion="1.3"/></bt:Sets>
+ </bt:Sets>
  </Requirements>
  <Hosts>
  <Host xsi:type="MailHost">
