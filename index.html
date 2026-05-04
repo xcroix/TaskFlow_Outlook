@@ -11032,3 +11032,1084 @@ window.render = function() {
 })();
 </script>
 
+
+
+<!-- === TaskFlow V225: universal due date + priority ordering === -->
+<script>
+// V225: All task orderings must prioritize nearest due date, then highest priority.
+// Also preserves RESUM behavior: highlighted tasks stay first, then due/priority inside each block.
+(function initV225UniversalDuePriorityOrdering(){
+  'use strict';
+
+  const originalGetGroups = window.getGroups;
+  const originalSetSummaryViewFilter = window.setSummaryViewFilter;
+  const originalApplySummaryHighlights = window.applySummaryHighlights;
+
+  function getActiveSummaryKey(){
+    return String(window.summaryHighlightFilter || 'none').toLowerCase();
+  }
+
+  function isInactiveSummaryKey(key){
+    return !key || key === 'none' || key === 'pending' || key === 'all';
+  }
+
+  function getTodayIsoSafe(){
+    return (typeof todayIso === 'function') ? todayIso() : new Date().toISOString().slice(0, 10);
+  }
+
+  function getDateForSort(task, field){
+    if (typeof getTaskDateForSort === 'function') return getTaskDateForSort(task && task[field]);
+    const value = task && task[field] ? String(task[field]) : '';
+    const match = value.match(/\d{4}-\d{2}-\d{2}/);
+    return match ? match[0] : '';
+  }
+
+  function getDueDateSortValue(task){
+    return getDateForSort(task, 'due_date') || '9999-12-31';
+  }
+
+  function getFollowupDateSortValueSafe(task){
+    return getDateForSort(task, 'followup_date') || '9999-12-31';
+  }
+
+  function getPrioritySortValue(task){
+    if (typeof normalizeTaskPriority === 'function') return normalizeTaskPriority(task);
+    const raw = String(task && task.priority || '').trim().toUpperCase();
+    if (raw === 'P1' || raw === '1') return 1;
+    if (raw === 'P2' || raw === '2') return 2;
+    if (raw === 'P3' || raw === '3') return 3;
+    if (raw === 'P4' || raw === '4') return 4;
+    return 99;
+  }
+
+  function getResponsibleSortValueSafe(task){
+    if (typeof getTaskResponsibleSortValue === 'function') return getTaskResponsibleSortValue(task);
+    return 1;
+  }
+
+  function compareTasksByDueDateAndPriority(a, b){
+    const dueDiff = getDueDateSortValue(a).localeCompare(getDueDateSortValue(b));
+    if (dueDiff !== 0) return dueDiff;
+
+    const priorityDiff = getPrioritySortValue(a) - getPrioritySortValue(b);
+    if (priorityDiff !== 0) return priorityDiff;
+
+    const responsibleDiff = getResponsibleSortValueSafe(a) - getResponsibleSortValueSafe(b);
+    if (responsibleDiff !== 0) return responsibleDiff;
+
+    const followupDiff = getFollowupDateSortValueSafe(a).localeCompare(getFollowupDateSortValueSafe(b));
+    if (followupDiff !== 0) return followupDiff;
+
+    return String(a && a.title || '').localeCompare(String(b && b.title || ''), window.LANG || 'ca');
+  }
+
+  function sortTasksByUniversalOrder(tasks){
+    return (tasks || []).slice().sort(compareTasksByDueDateAndPriority);
+  }
+
+  window.sortTasksByPriorityAndDueDate = sortTasksByUniversalOrder;
+  window.sortTasksByDueDateAndPriority = sortTasksByUniversalOrder;
+
+  function summaryDate(task, field){
+    if (typeof getDailySummaryTaskDate === 'function') return getDailySummaryTaskDate(task, field);
+    return getDateForSort(task, field);
+  }
+
+  function summaryTaskMatches(task){
+    const key = getActiveSummaryKey();
+    if (!task || isInactiveSummaryKey(key)) return false;
+
+    const today = getTodayIsoSafe();
+    const actionType = String(task.action_type || '').toLowerCase();
+
+    if (key === 'overdue') {
+      const followupDate = summaryDate(task, 'followup_date');
+      return !!followupDate && followupDate < today;
+    }
+    if (key === 'followup') return summaryDate(task, 'followup_date') === today;
+    if (key === 'meeting') return actionType === 'meeting' && summaryDate(task, 'due_date') === today;
+    if (key === 'call') return actionType === 'call' && summaryDate(task, 'due_date') === today;
+    if (key === 'deadline') return summaryDate(task, 'due_date') === today && actionType !== 'meeting' && actionType !== 'call';
+    if (key === 'priority') return getPrioritySortValue(task) <= 2;
+    return false;
+  }
+
+  function sortTasksWithSummaryAndUniversalOrder(tasks){
+    const sortedTasks = sortTasksByUniversalOrder(tasks);
+    const key = getActiveSummaryKey();
+    if (isInactiveSummaryKey(key)) return sortedTasks;
+
+    return sortedTasks
+      .map((task, index) => ({ task, index, matched: summaryTaskMatches(task) ? 1 : 0 }))
+      .sort((a, b) => {
+        if (a.matched !== b.matched) return b.matched - a.matched;
+        return a.index - b.index;
+      })
+      .map(item => item.task);
+  }
+
+  function groupHasSummaryMatch(group){
+    return !!(group && Array.isArray(group.tasks) && group.tasks.some(summaryTaskMatches));
+  }
+
+  window.getGroups = function(groupBy){
+    const groups = (typeof originalGetGroups === 'function') ? (originalGetGroups.apply(this, arguments) || []) : [];
+    const key = getActiveSummaryKey();
+
+    const orderedGroups = groups.map((group, index) => {
+      const nextGroup = Object.assign({}, group, {
+        tasks: sortTasksWithSummaryAndUniversalOrder(group.tasks || [])
+      });
+      return { group: nextGroup, index, matched: groupHasSummaryMatch(nextGroup) ? 1 : 0 };
+    });
+
+    if (isInactiveSummaryKey(key)) return orderedGroups.map(item => item.group);
+
+    return orderedGroups
+      .sort((a, b) => {
+        if (a.matched !== b.matched) return b.matched - a.matched;
+        return a.index - b.index;
+      })
+      .map(item => item.group);
+  };
+
+  function findTaskById(taskId){
+    try {
+      return (Array.isArray(TASKS) ? TASKS : []).find(task => String(task && task.task_id) === String(taskId)) || null;
+    } catch(e) {
+      return null;
+    }
+  }
+
+  function sortCardsWithSummaryAndUniversalOrder(cards){
+    const key = getActiveSummaryKey();
+    return cards
+      .map((card, index) => {
+        const task = findTaskById(card.getAttribute('data-task-id'));
+        return {
+          card,
+          index,
+          task,
+          matched: !isInactiveSummaryKey(key) && summaryTaskMatches(task) ? 1 : 0
+        };
+      })
+      .sort((a, b) => {
+        if (a.matched !== b.matched) return b.matched - a.matched;
+        const taskDiff = compareTasksByDueDateAndPriority(a.task, b.task);
+        if (taskDiff !== 0) return taskDiff;
+        return a.index - b.index;
+      })
+      .map(item => item.card);
+  }
+
+  function reorderRenderedCards(){
+    const container = document.getElementById('cnt');
+    if (!container) return;
+
+    const directCards = Array.from(container.querySelectorAll(':scope > .card[data-task-id]'));
+    if (directCards.length) {
+      sortCardsWithSummaryAndUniversalOrder(directCards).forEach(card => container.appendChild(card));
+      return;
+    }
+
+    const children = Array.from(container.children);
+    const groupPairs = [];
+
+    for (let index = 0; index < children.length; index += 1) {
+      const header = children[index];
+      const body = children[index + 1];
+      if (!header || !body || !header.classList || !header.classList.contains('ghdr')) continue;
+
+      const cards = Array.from(body.querySelectorAll(':scope > .card[data-task-id]'));
+      sortCardsWithSummaryAndUniversalOrder(cards).forEach(card => body.appendChild(card));
+
+      groupPairs.push({
+        header,
+        body,
+        index,
+        matched: cards.some(card => summaryTaskMatches(findTaskById(card.getAttribute('data-task-id')))) ? 1 : 0
+      });
+      index += 1;
+    }
+
+    const key = getActiveSummaryKey();
+    if (isInactiveSummaryKey(key)) return;
+
+    groupPairs
+      .sort((a, b) => {
+        if (a.matched !== b.matched) return b.matched - a.matched;
+        return a.index - b.index;
+      })
+      .forEach(group => {
+        container.appendChild(group.header);
+        container.appendChild(group.body);
+      });
+  }
+
+  function reapplyOrderingAfterRender(){
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      try { if (typeof originalApplySummaryHighlights === 'function') originalApplySummaryHighlights(); } catch(e) {}
+      try { reorderRenderedCards(); } catch(e) {}
+    }));
+  }
+
+  window.applySummaryHighlights = function(){
+    if (typeof originalApplySummaryHighlights === 'function') originalApplySummaryHighlights.apply(this, arguments);
+    reorderRenderedCards();
+  };
+
+  window.setSummaryViewFilter = function(filterKey, event){
+    if (typeof originalSetSummaryViewFilter === 'function') originalSetSummaryViewFilter.apply(this, arguments);
+    if (typeof render === 'function') render();
+    reapplyOrderingAfterRender();
+  };
+
+  const previousRender = window.render;
+  if (typeof previousRender === 'function' && !previousRender.__v225UniversalSortWrapped) {
+    const wrappedRender = function(){
+      const result = previousRender.apply(this, arguments);
+      reapplyOrderingAfterRender();
+      return result;
+    };
+    wrappedRender.__v225UniversalSortWrapped = true;
+    window.render = wrappedRender;
+  }
+})();
+</script>
+<!-- === END TaskFlow V225 === -->
+
+
+<!-- === TaskFlow V226: overdue due dates ordered oldest first === -->
+<script>
+// V226: Due date ordering is absolute ascending. Past due dates are shown oldest first, then today, then future, then no date.
+(function initV226OverdueOldestFirstOrdering(){
+  'use strict';
+
+  const previousGetGroups = window.getGroups;
+  const previousApplySummaryHighlights = window.applySummaryHighlights;
+  const previousSetSummaryViewFilter = window.setSummaryViewFilter;
+
+  function getActiveSummaryKey(){
+    return String(window.summaryHighlightFilter || 'none').toLowerCase();
+  }
+
+  function isInactiveSummaryKey(key){
+    return !key || key === 'none' || key === 'pending' || key === 'all';
+  }
+
+  function getDateForSort(task, field){
+    if (typeof getTaskDateForSort === 'function') return getTaskDateForSort(task && task[field]);
+    const value = task && task[field] ? String(task[field]) : '';
+    const match = value.match(/\d{4}-\d{2}-\d{2}/);
+    return match ? match[0] : '';
+  }
+
+  function getDueDateAbsoluteValue(task){
+    // Absolute ascending order: 2024-01-01 before 2024-02-01 before today before future.
+    return getDateForSort(task, 'due_date') || '9999-12-31';
+  }
+
+  function getFollowupDateValue(task){
+    return getDateForSort(task, 'followup_date') || '9999-12-31';
+  }
+
+  function getPriorityValue(task){
+    if (typeof normalizeTaskPriority === 'function') return normalizeTaskPriority(task);
+    const raw = String(task && task.priority || '').trim().toUpperCase();
+    if (raw === 'P1' || raw === '1') return 1;
+    if (raw === 'P2' || raw === '2') return 2;
+    if (raw === 'P3' || raw === '3') return 3;
+    if (raw === 'P4' || raw === '4') return 4;
+    return 99;
+  }
+
+  function getResponsibleValue(task){
+    if (typeof getTaskResponsibleSortValue === 'function') return getTaskResponsibleSortValue(task);
+    return 1;
+  }
+
+  function compareTasksByAbsoluteDueDateThenPriority(a, b){
+    const dueDiff = getDueDateAbsoluteValue(a).localeCompare(getDueDateAbsoluteValue(b));
+    if (dueDiff !== 0) return dueDiff;
+
+    const priorityDiff = getPriorityValue(a) - getPriorityValue(b);
+    if (priorityDiff !== 0) return priorityDiff;
+
+    const responsibleDiff = getResponsibleValue(a) - getResponsibleValue(b);
+    if (responsibleDiff !== 0) return responsibleDiff;
+
+    const followupDiff = getFollowupDateValue(a).localeCompare(getFollowupDateValue(b));
+    if (followupDiff !== 0) return followupDiff;
+
+    return String(a && a.title || '').localeCompare(String(b && b.title || ''), window.LANG || 'ca');
+  }
+
+  function sortTasksByAbsoluteDueDateThenPriority(tasks){
+    return (tasks || []).slice().sort(compareTasksByAbsoluteDueDateThenPriority);
+  }
+
+  window.sortTasksByPriorityAndDueDate = sortTasksByAbsoluteDueDateThenPriority;
+  window.sortTasksByDueDateAndPriority = sortTasksByAbsoluteDueDateThenPriority;
+
+  function getTodayIsoSafe(){
+    return (typeof todayIso === 'function') ? todayIso() : new Date().toISOString().slice(0, 10);
+  }
+
+  function summaryDate(task, field){
+    if (typeof getDailySummaryTaskDate === 'function') return getDailySummaryTaskDate(task, field);
+    return getDateForSort(task, field);
+  }
+
+  function summaryTaskMatches(task){
+    const key = getActiveSummaryKey();
+    if (!task || isInactiveSummaryKey(key)) return false;
+
+    const today = getTodayIsoSafe();
+    const actionType = String(task.action_type || '').toLowerCase();
+
+    if (key === 'overdue') {
+      const followupDate = summaryDate(task, 'followup_date');
+      return !!followupDate && followupDate < today;
+    }
+    if (key === 'followup') return summaryDate(task, 'followup_date') === today;
+    if (key === 'meeting') return actionType === 'meeting' && summaryDate(task, 'due_date') === today;
+    if (key === 'call') return actionType === 'call' && summaryDate(task, 'due_date') === today;
+    if (key === 'deadline') return summaryDate(task, 'due_date') === today && actionType !== 'meeting' && actionType !== 'call';
+    if (key === 'priority') return getPriorityValue(task) <= 2;
+    return false;
+  }
+
+  function sortTasksWithSummaryFirst(tasks){
+    const sorted = sortTasksByAbsoluteDueDateThenPriority(tasks);
+    const key = getActiveSummaryKey();
+    if (isInactiveSummaryKey(key)) return sorted;
+
+    return sorted
+      .map((task, index) => ({ task, index, matched: summaryTaskMatches(task) ? 1 : 0 }))
+      .sort((a, b) => {
+        if (a.matched !== b.matched) return b.matched - a.matched;
+        return a.index - b.index;
+      })
+      .map(item => item.task);
+  }
+
+  function groupHasSummaryMatch(group){
+    return !!(group && Array.isArray(group.tasks) && group.tasks.some(summaryTaskMatches));
+  }
+
+  window.getGroups = function(groupBy){
+    const groups = (typeof previousGetGroups === 'function') ? (previousGetGroups.apply(this, arguments) || []) : [];
+    const key = getActiveSummaryKey();
+
+    const normalizedGroups = groups.map((group, index) => {
+      const nextGroup = Object.assign({}, group, {
+        tasks: sortTasksWithSummaryFirst(group.tasks || [])
+      });
+      return { group: nextGroup, index, matched: groupHasSummaryMatch(nextGroup) ? 1 : 0 };
+    });
+
+    if (isInactiveSummaryKey(key)) return normalizedGroups.map(item => item.group);
+
+    return normalizedGroups
+      .sort((a, b) => {
+        if (a.matched !== b.matched) return b.matched - a.matched;
+        return a.index - b.index;
+      })
+      .map(item => item.group);
+  };
+
+  function findTaskById(taskId){
+    try {
+      return (Array.isArray(TASKS) ? TASKS : []).find(task => String(task && task.task_id) === String(taskId)) || null;
+    } catch(e) {
+      return null;
+    }
+  }
+
+  function sortCards(cards){
+    const key = getActiveSummaryKey();
+    return cards
+      .map((card, index) => {
+        const task = findTaskById(card.getAttribute('data-task-id'));
+        return { card, index, task, matched: !isInactiveSummaryKey(key) && summaryTaskMatches(task) ? 1 : 0 };
+      })
+      .sort((a, b) => {
+        if (a.matched !== b.matched) return b.matched - a.matched;
+        const taskDiff = compareTasksByAbsoluteDueDateThenPriority(a.task, b.task);
+        if (taskDiff !== 0) return taskDiff;
+        return a.index - b.index;
+      })
+      .map(item => item.card);
+  }
+
+  function reorderRenderedCards(){
+    const container = document.getElementById('cnt');
+    if (!container) return;
+
+    const directCards = Array.from(container.querySelectorAll(':scope > .card[data-task-id]'));
+    if (directCards.length) {
+      sortCards(directCards).forEach(card => container.appendChild(card));
+      return;
+    }
+
+    const children = Array.from(container.children);
+    const groupPairs = [];
+
+    for (let index = 0; index < children.length; index += 1) {
+      const header = children[index];
+      const body = children[index + 1];
+      if (!header || !body || !header.classList || !header.classList.contains('ghdr')) continue;
+
+      const cards = Array.from(body.querySelectorAll(':scope > .card[data-task-id]'));
+      sortCards(cards).forEach(card => body.appendChild(card));
+      groupPairs.push({
+        header,
+        body,
+        index,
+        matched: cards.some(card => summaryTaskMatches(findTaskById(card.getAttribute('data-task-id')))) ? 1 : 0
+      });
+      index += 1;
+    }
+
+    if (isInactiveSummaryKey(getActiveSummaryKey())) return;
+
+    groupPairs
+      .sort((a, b) => {
+        if (a.matched !== b.matched) return b.matched - a.matched;
+        return a.index - b.index;
+      })
+      .forEach(group => {
+        container.appendChild(group.header);
+        container.appendChild(group.body);
+      });
+  }
+
+  function reapplyOrdering(){
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      try { if (typeof previousApplySummaryHighlights === 'function') previousApplySummaryHighlights(); } catch(e) {}
+      try { reorderRenderedCards(); } catch(e) {}
+    }));
+  }
+
+  window.applySummaryHighlights = function(){
+    if (typeof previousApplySummaryHighlights === 'function') previousApplySummaryHighlights.apply(this, arguments);
+    reorderRenderedCards();
+  };
+
+  window.setSummaryViewFilter = function(filterKey, event){
+    if (typeof previousSetSummaryViewFilter === 'function') previousSetSummaryViewFilter.apply(this, arguments);
+    if (typeof render === 'function') render();
+    reapplyOrdering();
+  };
+
+  const previousRender = window.render;
+  if (typeof previousRender === 'function' && !previousRender.__v226OverdueOldestSortWrapped) {
+    const wrappedRender = function(){
+      const result = previousRender.apply(this, arguments);
+      reapplyOrdering();
+      return result;
+    };
+    wrappedRender.__v226OverdueOldestSortWrapped = true;
+    window.render = wrappedRender;
+  }
+})();
+</script>
+<!-- === END TaskFlow V226 === -->
+
+
+<!-- === TaskFlow V227: universal due date + follow-up date + priority ordering === -->
+<script>
+// V227: Universal ordering for all views, filters and groupings.
+// Criteria: due date (including past dates, oldest first), follow-up date, priority.
+// RESUM is not required for this ordering; when RESUM is active, highlighted tasks remain first and use this same ordering inside each block.
+(function initV227UniversalDueFollowupPriorityOrdering(){
+  'use strict';
+
+  const previousGetGroups = window.getGroups;
+  const previousApplySummaryHighlights = window.applySummaryHighlights;
+  const previousSetSummaryViewFilter = window.setSummaryViewFilter;
+
+  function getActiveSummaryKey(){
+    return String(window.summaryHighlightFilter || 'none').toLowerCase();
+  }
+
+  function isInactiveSummaryKey(key){
+    return !key || key === 'none' || key === 'pending' || key === 'all';
+  }
+
+  function getDateForSort(task, field){
+    if (typeof getTaskDateForSort === 'function') return getTaskDateForSort(task && task[field]);
+    const value = task && task[field] ? String(task[field]) : '';
+    const match = value.match(/\d{4}-\d{2}-\d{2}/);
+    return match ? match[0] : '';
+  }
+
+  function getDueDateValue(task){
+    // Absolute ascending: older overdue dates first, then today, then future, then no date.
+    return getDateForSort(task, 'due_date') || '9999-12-31';
+  }
+
+  function getFollowupDateValue(task){
+    // Same rule as due date. Empty follow-up dates go last within the same due date.
+    return getDateForSort(task, 'followup_date') || '9999-12-31';
+  }
+
+  function getPriorityValue(task){
+    if (typeof normalizeTaskPriority === 'function') return normalizeTaskPriority(task);
+    const raw = String(task && task.priority || '').trim().toUpperCase();
+    if (raw === 'P1' || raw === '1') return 1;
+    if (raw === 'P2' || raw === '2') return 2;
+    if (raw === 'P3' || raw === '3') return 3;
+    if (raw === 'P4' || raw === '4') return 4;
+    return 99;
+  }
+
+  function getResponsibleValue(task){
+    if (typeof getTaskResponsibleSortValue === 'function') return getTaskResponsibleSortValue(task);
+    return 1;
+  }
+
+  function compareTasksByDueFollowupPriority(a, b){
+    const dueDiff = getDueDateValue(a).localeCompare(getDueDateValue(b));
+    if (dueDiff !== 0) return dueDiff;
+
+    const followupDiff = getFollowupDateValue(a).localeCompare(getFollowupDateValue(b));
+    if (followupDiff !== 0) return followupDiff;
+
+    const priorityDiff = getPriorityValue(a) - getPriorityValue(b);
+    if (priorityDiff !== 0) return priorityDiff;
+
+    const responsibleDiff = getResponsibleValue(a) - getResponsibleValue(b);
+    if (responsibleDiff !== 0) return responsibleDiff;
+
+    return String(a && a.title || '').localeCompare(String(b && b.title || ''), window.LANG || 'ca');
+  }
+
+  function sortTasksByDueFollowupPriority(tasks){
+    return (tasks || []).slice().sort(compareTasksByDueFollowupPriority);
+  }
+
+  // Force all existing sorting entry points to use the new universal order.
+  window.sortTasksByPriorityAndDueDate = sortTasksByDueFollowupPriority;
+  window.sortTasksByDueDateAndPriority = sortTasksByDueFollowupPriority;
+  window.sortTasksByDueFollowupPriority = sortTasksByDueFollowupPriority;
+
+  function getTodayIsoSafe(){
+    return (typeof todayIso === 'function') ? todayIso() : new Date().toISOString().slice(0, 10);
+  }
+
+  function summaryDate(task, field){
+    if (typeof getDailySummaryTaskDate === 'function') return getDailySummaryTaskDate(task, field);
+    return getDateForSort(task, field);
+  }
+
+  function summaryTaskMatches(task){
+    const key = getActiveSummaryKey();
+    if (!task || isInactiveSummaryKey(key)) return false;
+
+    const today = getTodayIsoSafe();
+    const actionType = String(task.action_type || '').toLowerCase();
+
+    if (key === 'overdue') {
+      const followupDate = summaryDate(task, 'followup_date');
+      return !!followupDate && followupDate < today;
+    }
+    if (key === 'followup') return summaryDate(task, 'followup_date') === today;
+    if (key === 'meeting') return actionType === 'meeting' && summaryDate(task, 'due_date') === today;
+    if (key === 'call') return actionType === 'call' && summaryDate(task, 'due_date') === today;
+    if (key === 'deadline') return summaryDate(task, 'due_date') === today && actionType !== 'meeting' && actionType !== 'call';
+    if (key === 'priority') return getPriorityValue(task) <= 2;
+    return false;
+  }
+
+  function sortTasksWithOptionalSummaryFirst(tasks){
+    const sortedTasks = sortTasksByDueFollowupPriority(tasks);
+    const key = getActiveSummaryKey();
+    if (isInactiveSummaryKey(key)) return sortedTasks;
+
+    return sortedTasks
+      .map((task, index) => ({ task, index, matched: summaryTaskMatches(task) ? 1 : 0 }))
+      .sort((a, b) => {
+        if (a.matched !== b.matched) return b.matched - a.matched;
+        return a.index - b.index;
+      })
+      .map(item => item.task);
+  }
+
+  function groupHasSummaryMatch(group){
+    return !!(group && Array.isArray(group.tasks) && group.tasks.some(summaryTaskMatches));
+  }
+
+  window.getGroups = function(groupBy){
+    const groups = (typeof previousGetGroups === 'function') ? (previousGetGroups.apply(this, arguments) || []) : [];
+    const key = getActiveSummaryKey();
+
+    const orderedGroups = groups.map((group, index) => {
+      const nextGroup = Object.assign({}, group, {
+        tasks: sortTasksWithOptionalSummaryFirst(group.tasks || [])
+      });
+      return { group: nextGroup, index, matched: groupHasSummaryMatch(nextGroup) ? 1 : 0 };
+    });
+
+    if (isInactiveSummaryKey(key)) return orderedGroups.map(item => item.group);
+
+    return orderedGroups
+      .sort((a, b) => {
+        if (a.matched !== b.matched) return b.matched - a.matched;
+        return a.index - b.index;
+      })
+      .map(item => item.group);
+  };
+
+  function findTaskById(taskId){
+    try {
+      return (Array.isArray(TASKS) ? TASKS : []).find(task => String(task && task.task_id) === String(taskId)) || null;
+    } catch(e) {
+      return null;
+    }
+  }
+
+  function sortCardsByDueFollowupPriority(cards){
+    const key = getActiveSummaryKey();
+    return cards
+      .map((card, index) => {
+        const task = findTaskById(card.getAttribute('data-task-id'));
+        return {
+          card,
+          index,
+          task,
+          matched: !isInactiveSummaryKey(key) && summaryTaskMatches(task) ? 1 : 0
+        };
+      })
+      .sort((a, b) => {
+        if (a.matched !== b.matched) return b.matched - a.matched;
+        const taskDiff = compareTasksByDueFollowupPriority(a.task, b.task);
+        if (taskDiff !== 0) return taskDiff;
+        return a.index - b.index;
+      })
+      .map(item => item.card);
+  }
+
+  function reorderRenderedCards(){
+    const container = document.getElementById('cnt');
+    if (!container) return;
+
+    const directCards = Array.from(container.querySelectorAll(':scope > .card[data-task-id]'));
+    if (directCards.length) {
+      sortCardsByDueFollowupPriority(directCards).forEach(card => container.appendChild(card));
+      return;
+    }
+
+    const children = Array.from(container.children);
+    const groupPairs = [];
+
+    for (let index = 0; index < children.length; index += 1) {
+      const header = children[index];
+      const body = children[index + 1];
+      if (!header || !body || !header.classList || !header.classList.contains('ghdr')) continue;
+
+      const cards = Array.from(body.querySelectorAll(':scope > .card[data-task-id]'));
+      sortCardsByDueFollowupPriority(cards).forEach(card => body.appendChild(card));
+
+      groupPairs.push({
+        header,
+        body,
+        index,
+        matched: cards.some(card => summaryTaskMatches(findTaskById(card.getAttribute('data-task-id')))) ? 1 : 0
+      });
+      index += 1;
+    }
+
+    if (isInactiveSummaryKey(getActiveSummaryKey())) return;
+
+    groupPairs
+      .sort((a, b) => {
+        if (a.matched !== b.matched) return b.matched - a.matched;
+        return a.index - b.index;
+      })
+      .forEach(group => {
+        container.appendChild(group.header);
+        container.appendChild(group.body);
+      });
+  }
+
+  function reapplyOrdering(){
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      try { if (typeof previousApplySummaryHighlights === 'function') previousApplySummaryHighlights(); } catch(e) {}
+      try { reorderRenderedCards(); } catch(e) {}
+    }));
+  }
+
+  window.applySummaryHighlights = function(){
+    if (typeof previousApplySummaryHighlights === 'function') previousApplySummaryHighlights.apply(this, arguments);
+    reorderRenderedCards();
+  };
+
+  window.setSummaryViewFilter = function(filterKey, event){
+    if (typeof previousSetSummaryViewFilter === 'function') previousSetSummaryViewFilter.apply(this, arguments);
+    if (typeof render === 'function') render();
+    reapplyOrdering();
+  };
+
+  const previousRender = window.render;
+  if (typeof previousRender === 'function' && !previousRender.__v227DueFollowupPrioritySortWrapped) {
+    const wrappedRender = function(){
+      const result = previousRender.apply(this, arguments);
+      reapplyOrdering();
+      return result;
+    };
+    wrappedRender.__v227DueFollowupPrioritySortWrapped = true;
+    window.render = wrappedRender;
+  }
+})();
+</script>
+<!-- === END TaskFlow V227 === -->
+
+
+<!-- === TaskFlow V228: fix header legend qepop === -->
+<script>
+// V228: Ensure the header legend button always has a qepop to open.
+// Scope: header legend icon only.
+(function initV228HeaderLegendQepopFix(){
+  'use strict';
+
+  function ensureLegendI18n(){
+    if (typeof window.I18N === 'undefined') return;
+    window.I18N.ca = window.I18N.ca || {};
+    window.I18N.es = window.I18N.es || {};
+    window.I18N.en = window.I18N.en || {};
+
+    Object.assign(window.I18N.ca, {
+      LEGEND_TITLE: 'Llegenda',
+      LEGEND_HINT: 'Mostrar llegenda',
+      LEG_PRIORITY: 'Prioritat',
+      LEG_ASSIGNED: 'Assignat',
+      LEG_FOLLOWUP: 'Seguiment',
+      LEG_DEADLINE: 'Venciment',
+      LEG_COMMENTS: 'Comentaris',
+      LEG_TIME: 'Temps',
+      LEG_EMAILS: 'Emails',
+      LEG_PROVIDERS: 'Proveïdors'
+    });
+    Object.assign(window.I18N.es, {
+      LEGEND_TITLE: 'Leyenda',
+      LEGEND_HINT: 'Mostrar leyenda',
+      LEG_PRIORITY: 'Prioridad',
+      LEG_ASSIGNED: 'Asignado',
+      LEG_FOLLOWUP: 'Seguimiento',
+      LEG_DEADLINE: 'Vencimiento',
+      LEG_COMMENTS: 'Comentarios',
+      LEG_TIME: 'Tiempo',
+      LEG_EMAILS: 'Emails',
+      LEG_PROVIDERS: 'Proveedores'
+    });
+    Object.assign(window.I18N.en, {
+      LEGEND_TITLE: 'Legend',
+      LEGEND_HINT: 'Show legend',
+      LEG_PRIORITY: 'Priority',
+      LEG_ASSIGNED: 'Assigned',
+      LEG_FOLLOWUP: 'Follow-up',
+      LEG_DEADLINE: 'Due date',
+      LEG_COMMENTS: 'Comments',
+      LEG_TIME: 'Time',
+      LEG_EMAILS: 'Emails',
+      LEG_PROVIDERS: 'Providers'
+    });
+  }
+
+  function getLegendHtml(){
+    return `
+      <div class="legend-body" role="list" aria-label="${typeof tr === 'function' ? tr('LEGEND_TITLE') : 'Llegenda'}">
+        <div class="leg-item"><span aria-hidden="true">P1</span><span data-i18n="LEG_PRIORITY">Prioritat</span></div>
+        <div class="leg-item"><span aria-hidden="true">👤</span><span data-i18n="LEG_ASSIGNED">Assignat</span></div>
+        <div class="leg-item"><span aria-hidden="true">👁️</span><span data-i18n="LEG_FOLLOWUP">Seguiment</span></div>
+        <div class="leg-item"><span aria-hidden="true">⏰</span><span data-i18n="LEG_DEADLINE">Venciment</span></div>
+        <div class="leg-item"><span aria-hidden="true">💬</span><span data-i18n="LEG_COMMENTS">Comentaris</span></div>
+        <div class="leg-item"><span aria-hidden="true">⏱️</span><span data-i18n="LEG_TIME">Temps</span></div>
+        <div class="leg-item"><span aria-hidden="true">✉️</span><span data-i18n="LEG_EMAILS">Emails</span></div>
+        <div class="leg-item"><span aria-hidden="true">🏢</span><span data-i18n="LEG_PROVIDERS">Proveïdors</span></div>
+      </div>`;
+  }
+
+  function ensureLegendQepop(){
+    ensureLegendI18n();
+    let pop = document.getElementById('legendQepop');
+    if (!pop) {
+      pop = document.createElement('div');
+      pop.id = 'legendQepop';
+      pop.className = 'qepop legend-qepop';
+      pop.setAttribute('role', 'dialog');
+      pop.setAttribute('aria-modal', 'false');
+      pop.setAttribute('aria-hidden', 'true');
+      pop.setAttribute('tabindex', '-1');
+      (document.querySelector('.phone') || document.body).appendChild(pop);
+    }
+    if (!pop.querySelector('.legend-body')) {
+      pop.innerHTML = getLegendHtml();
+    }
+    try { if (typeof applyI18n === 'function') applyI18n(); } catch(e) {}
+    try { if (typeof applyLegendIconHints === 'function') applyLegendIconHints(); } catch(e) {}
+    return pop;
+  }
+
+  const previousOpenLegendQepop = window.openLegendQepop;
+  window.openLegendQepop = function(triggerEl){
+    const pop = ensureLegendQepop();
+    if (!pop || !triggerEl) return;
+
+    if (typeof previousOpenLegendQepop === 'function') {
+      previousOpenLegendQepop(triggerEl);
+      return;
+    }
+
+    document.querySelectorAll('.qepop.open').forEach(panel => {
+      panel.classList.remove('open');
+      panel.setAttribute('aria-hidden', 'true');
+    });
+
+    const root = triggerEl.closest('.phone') || document.querySelector('.phone') || document.body;
+    const rootRect = root.getBoundingClientRect();
+    const triggerRect = triggerEl.getBoundingClientRect();
+    const margin = 10;
+    const maxWidth = Math.max(240, rootRect.width - (margin * 2));
+
+    pop.style.width = Math.min(360, maxWidth) + 'px';
+    pop.style.maxWidth = maxWidth + 'px';
+    pop.style.left = Math.max(margin, Math.min(triggerRect.left - rootRect.left, rootRect.width - maxWidth - margin)) + 'px';
+    pop.style.top = (triggerRect.bottom - rootRect.top + 6) + 'px';
+    pop.style.right = 'auto';
+    pop.style.bottom = 'auto';
+    pop.style.position = 'absolute';
+    pop.classList.add('open');
+    pop.setAttribute('aria-hidden', 'false');
+  };
+
+  document.addEventListener('DOMContentLoaded', function(){
+    ensureLegendI18n();
+    const legendButton = document.querySelector('.btn-legend');
+    if (legendButton) {
+      legendButton.setAttribute('title', typeof tr === 'function' ? tr('LEGEND_HINT') : 'Mostrar llegenda');
+      legendButton.setAttribute('aria-label', typeof tr === 'function' ? tr('LEGEND_HINT') : 'Mostrar llegenda');
+    }
+  });
+})();
+</script>
+<!-- === END TaskFlow V228 === -->
+
+
+<!-- === TaskFlow V229: legend icons match renderCard Task icons === -->
+<style>
+/* V229: Legend icons reuse the exact icon fragments rendered in renderCard Task. */
+#legendQepop .legend-task-icon{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  flex:0 0 18px;
+  width:18px;
+  height:18px;
+  min-width:18px;
+  overflow:hidden;
+}
+#legendQepop .legend-task-icon .ic{
+  margin:0!important;
+  padding:0!important;
+  min-width:0!important;
+  width:18px!important;
+  height:18px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:0!important;
+  cursor:default!important;
+  pointer-events:none!important;
+}
+#legendQepop .legend-task-icon img,
+#legendQepop .legend-task-icon svg{
+  width:16px!important;
+  height:16px!important;
+  object-fit:contain!important;
+  flex:0 0 16px!important;
+}
+#legendQepop .legend-task-icon .pb{
+  transform:scale(.9);
+  transform-origin:center;
+}
+#legendQepop .legend-task-icon .aw{
+  transform:scale(.82);
+  transform-origin:center;
+}
+</style>
+<script>
+// V229: Replace legend emoji placeholders with the same icon HTML used by renderCard Task.
+(function initV229LegendIconsFromTaskCard(){
+  'use strict';
+
+  function cleanClonedIcon(clone){
+    if (!clone) return null;
+    clone.removeAttribute('onclick');
+    clone.removeAttribute('tabindex');
+    clone.removeAttribute('data-focus-key');
+    clone.removeAttribute('title');
+    clone.removeAttribute('aria-label');
+    clone.style.cursor = 'default';
+    clone.style.pointerEvents = 'none';
+
+    clone.querySelectorAll('.it,.ppill').forEach(node => node.remove());
+    clone.querySelectorAll('span').forEach(node => {
+      if (!node.querySelector('img,svg') && !node.classList.contains('pb') && !node.classList.contains('av')) {
+        node.remove();
+      }
+    });
+    clone.querySelectorAll('img,svg').forEach(icon => {
+      icon.removeAttribute('title');
+      icon.setAttribute('aria-hidden', 'true');
+      if (icon.tagName && icon.tagName.toLowerCase() === 'img') icon.setAttribute('alt', '');
+    });
+    return clone;
+  }
+
+  function getIconFromTaskCard(selector){
+    const source = document.querySelector(selector);
+    if (!source) return '';
+    const clone = cleanClonedIcon(source.cloneNode(true));
+    return clone ? clone.outerHTML : '';
+  }
+
+  function getFallbackIcon(key){
+    if (typeof IC === 'undefined') return '';
+    if (key === 'LEG_FOLLOWUP') return IC.eye || '';
+    if (key === 'LEG_DEADLINE') return IC.hg || '';
+    if (key === 'LEG_COMMENTS') return IC.bbl || '';
+    if (key === 'LEG_TIME') return IC.clk || '';
+    if (key === 'LEG_EMAILS') return IC.lnk || '';
+    if (key === 'LEG_PROVIDERS') return IC.shp || '';
+    if (key === 'LEG_PRIORITY') return '<span class="pb p1">P1</span>';
+    return '';
+  }
+
+  function getTaskCardIconHtml(key){
+    const selectorByKey = {
+      LEG_PRIORITY: '.card[data-task-id] [data-focus-key^="pri-"]',
+      LEG_ASSIGNED: '.card[data-task-id] [data-focus-key^="per-"]',
+      LEG_FOLLOWUP: '.card[data-task-id] [data-focus-key^="fol-"]',
+      LEG_DEADLINE: '.card[data-task-id] [data-focus-key^="due-"]',
+      LEG_COMMENTS: '.card[data-task-id] [data-focus-key^="com-"]',
+      LEG_TIME: '.card[data-task-id] [data-focus-key^="tim-"]',
+      LEG_EMAILS: '.card[data-task-id] .ic[onclick*="openQePop(\'emails\'"]',
+      LEG_PROVIDERS: '.card[data-task-id] .ic[onclick*="openQePop(\'providers\'"]'
+    };
+    const selector = selectorByKey[key];
+    return (selector ? getIconFromTaskCard(selector) : '') || getFallbackIcon(key);
+  }
+
+  window.applyLegendTaskCardIcons = function(){
+    const pop = document.getElementById('legendQepop');
+    if (!pop) return;
+
+    pop.querySelectorAll('.leg-item').forEach(item => {
+      const labelNode = item.querySelector('[data-i18n]');
+      const key = labelNode ? labelNode.getAttribute('data-i18n') : '';
+      if (!key) return;
+
+      const iconHtml = getTaskCardIconHtml(key);
+      if (!iconHtml) return;
+
+      let iconWrap = item.querySelector('.legend-task-icon');
+      if (!iconWrap) {
+        iconWrap = document.createElement('span');
+        iconWrap.className = 'legend-task-icon';
+        const first = item.firstElementChild;
+        if (first && first !== labelNode) first.replaceWith(iconWrap);
+        else item.insertBefore(iconWrap, labelNode);
+      }
+      iconWrap.innerHTML = iconHtml;
+    });
+
+    try { if (typeof applyLegendIconHints === 'function') applyLegendIconHints(); } catch(e) {}
+  };
+
+  const previousOpenLegendQepop = window.openLegendQepop;
+  window.openLegendQepop = function(triggerEl){
+    if (typeof previousOpenLegendQepop === 'function') previousOpenLegendQepop.apply(this, arguments);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      try { window.applyLegendTaskCardIcons(); } catch(e) {}
+    }));
+  };
+
+  const previousRender = window.render;
+  if (typeof previousRender === 'function' && !previousRender.__v229LegendIconsWrapped) {
+    const wrappedRender = function(){
+      const result = previousRender.apply(this, arguments);
+      requestAnimationFrame(() => {
+        try { window.applyLegendTaskCardIcons(); } catch(e) {}
+      });
+      return result;
+    };
+    wrappedRender.__v229LegendIconsWrapped = true;
+    window.render = wrappedRender;
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    requestAnimationFrame(() => {
+      try { window.applyLegendTaskCardIcons(); } catch(e) {}
+    });
+  });
+})();
+</script>
+<!-- === END TaskFlow V229 === -->
+
+
+<!-- === TaskFlow V230: hints for second row icons in renderCard Task === -->
+<script>
+// V230: Add missing hints to the second row icons of renderCard Task.
+// Scope: comments, time, emails and providers icons only.
+(function initV230TaskSecondRowIconHints(){
+  'use strict';
+
+  function getLabel(key, fallback){
+    try {
+      if (typeof tr === 'function') {
+        const translated = tr(key);
+        if (translated && translated !== key) return translated;
+      }
+    } catch(e) {}
+    return fallback;
+  }
+
+  function setHint(element, label){
+    if (!element || !label) return;
+    element.setAttribute('title', label);
+    element.setAttribute('aria-label', label);
+    if (!element.hasAttribute('tabindex')) element.setAttribute('tabindex', '0');
+  }
+
+  window.applyTaskSecondRowIconHints = function(){
+    document.querySelectorAll('#cnt .card[data-task-id]').forEach(card => {
+      setHint(card.querySelector('[data-focus-key^="com-"]'), getLabel('LEG_COMMENTS', 'Comentaris'));
+      setHint(card.querySelector('[data-focus-key^="tim-"]'), getLabel('LEG_TIME', 'Temps'));
+      setHint(card.querySelector('.ic[onclick*="openQePop(\'emails\'"]'), getLabel('LEG_EMAILS', 'Emails'));
+      setHint(card.querySelector('.ic[onclick*="openQePop(\'providers\'"]'), getLabel('LEG_PROVIDERS', 'Proveïdors'));
+    });
+  };
+
+  const previousRender = window.render;
+  if (typeof previousRender === 'function' && !previousRender.__v230SecondRowHintsWrapped) {
+    const wrappedRender = function(){
+      const result = previousRender.apply(this, arguments);
+      requestAnimationFrame(() => {
+        try { window.applyTaskSecondRowIconHints(); } catch(e) {}
+      });
+      return result;
+    };
+    wrappedRender.__v230SecondRowHintsWrapped = true;
+    window.render = wrappedRender;
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    requestAnimationFrame(() => {
+      try { window.applyTaskSecondRowIconHints(); } catch(e) {}
+    });
+  });
+})();
+</script>
+<!-- === END TaskFlow V230 === -->
