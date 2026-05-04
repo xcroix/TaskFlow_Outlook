@@ -21,21 +21,18 @@ function openCreateTaskFormBlank(ev) {
   toggleTaskCreatePopdown(formConfig, ev && ev.currentTarget ? ev.currentTarget : null);
 }
 
-// === V213: crear tasca DES D'EMAIL (amb vinculació automàtica) ===
-// Comments in English per Guia XCroix
+// === V215: create task FROM EMAIL (email-linked) ===
 function openCreateTaskFromEmail(ev) {
+  if (ev && typeof ev.stopPropagation === 'function') ev.stopPropagation();
+
   if (!window.currentEmailContext || !currentEmailContext.internetMessageId) return;
   const formConfig = getTaskFormConfig('create');
   if (!formConfig) return;
 
-  // Email-linked mode
   formConfig._emailMode = 'linked';
-
-  // Pre-fill from email context
   formConfig.values.title = currentEmailContext.subject || '';
   formConfig.values.notes = '';
 
-  // Inject email context for onSave
   formConfig.emailContext = {
     internetMessageId: currentEmailContext.internetMessageId,
     from: currentEmailContext.from || null,
@@ -4517,6 +4514,21 @@ async function tfLoadTasksForEmail() {
         const t = await tfFetchJson(`${TF_CONFIG.apiBaseUrl}/tasks/${encodeURIComponent(uid)}`);
         // Map API shape → internal TASKS shape
         const taskId = t.uid || uid;
+    // V215: native Email → Task relation (no hook)
+    if (formConfig && formConfig.emailContext && formConfig.emailContext.internetMessageId) {
+      try {
+        const emailId = formConfig.emailContext.internetMessageId;
+        if (window.TaskFlow && TaskFlow.relations && typeof TaskFlow.relations.createEmailTaskRelation === 'function') {
+          if (typeof TaskFlow.relations.existsEmailTaskRelation === 'function') {
+            const exists = await TaskFlow.relations.existsEmailTaskRelation(emailId, taskId);
+            if (!exists) await TaskFlow.relations.createEmailTaskRelation(emailId, taskId);
+          } else {
+            await TaskFlow.relations.createEmailTaskRelation(emailId, taskId);
+          }
+        }
+      } catch (e) {}
+    }
+
         const projId = findOrCreateProject(t.projectName || tr('NO_PROJECT'), '#2B5CE6');
         TASKS.push({
           task_id:          taskId,
@@ -10729,20 +10741,3 @@ window.render = function() {
 })();
 </script>
 
-
-
-// === V213: minimal onSave hook for Email → Task relation (guarded) ===
-// This function is safe to call after task creation
-async function v213_linkEmailToTaskIfNeeded(formConfig, taskId) {
-  try {
-    if (!formConfig || !formConfig.emailContext || !formConfig.emailContext.internetMessageId || !taskId) return;
-    const emailId = formConfig.emailContext.internetMessageId;
-    if (window.TaskFlow && TaskFlow.relations && typeof TaskFlow.relations.createEmailTaskRelation === 'function') {
-      if (typeof TaskFlow.relations.existsEmailTaskRelation === 'function') {
-        const exists = await TaskFlow.relations.existsEmailTaskRelation(emailId, taskId);
-        if (exists) return;
-      }
-      await TaskFlow.relations.createEmailTaskRelation(emailId, taskId);
-    }
-  } catch (e) { /* silent by design */ }
-}
