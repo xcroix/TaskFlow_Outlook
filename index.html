@@ -5856,15 +5856,7 @@ function openQuickActions() {
   if (drop.classList.contains('open')) { closeQaDrop(); return; }
 
   const linkedTasks = getTasksLinkedToActiveEmail();
-  const primaryAction = linkedTasks.length
-    ? `<div class="qa-item" role="menuitem" tabindex="0" onclick="openFollowUpOnly()">
-        <div class="qa-ico" style="background:rgba(217,119,6,.12);color:var(--am)">👁️</div>
-        <div class="qa-txt">
-          <div class="qa-title">${tr('QA_FOLLOWUP')}</div>
-          <div class="qa-sub">${tr('QA_FOLLOWUP_SUB')}</div>
-        </div><div class="qa-go">›</div>
-      </div>`
-    : `<div class="qa-item" role="menuitem" tabindex="0" onclick="closeQaDrop();openCreateTaskForm()">
+  const primaryAction = `<div class="qa-item" role="menuitem" tabindex="0" onclick="event.preventDefault();event.stopPropagation();closeQaDrop();openCreateTaskForm(event)">
         <div class="qa-ico">✅</div>
         <div class="qa-txt">
           <div class="qa-title">${tr('QA_CREATE')}</div>
@@ -10362,6 +10354,305 @@ function removeTodayHeaderV175() {
   }
 })();
 </script>
+
+
+<!-- === TaskFlow V222 PATCH: Real anchored qepops for Email + Task action menus === -->
+<script>
+// V222: render Email and Task quick actions in anchored qepops instead of overlays.
+// Scope: Email meeting/call retained from V221. Task edit/meeting/call fixed in V222.
+(function () {
+  'use strict';
+
+  function closeLegacyOverlay() {
+    const overlay = document.getElementById('ov');
+    const backdrop = document.getElementById('bk');
+    if (overlay) overlay.classList.remove('open');
+    if (backdrop) backdrop.classList.remove('open');
+  }
+
+  function closeOpenQepops() {
+    document.querySelectorAll('.qepop.open').forEach(function (panel) {
+      panel.classList.remove('open');
+      panel.setAttribute('aria-hidden', 'true');
+    });
+  }
+
+  function positionPanel(panel, anchor) {
+    if (!panel || !anchor) return;
+    const root = anchor.closest('.phone') || document.querySelector('.phone') || document.body;
+    const anchorRect = anchor.getBoundingClientRect();
+    const rootRect = root.getBoundingClientRect();
+    const margin = 10;
+    const maxWidth = Math.max(240, rootRect.width - (margin * 2));
+    panel.style.width = Math.min(390, maxWidth) + 'px';
+    panel.style.maxWidth = maxWidth + 'px';
+    panel.style.left = Math.max(margin, Math.min(anchorRect.left - rootRect.left, rootRect.width - maxWidth - margin)) + 'px';
+    panel.style.top = (anchorRect.bottom - rootRect.top + 6) + 'px';
+    panel.style.right = 'auto';
+    panel.style.bottom = 'auto';
+    panel.style.position = 'absolute';
+  }
+
+  function ensureActionQepop(id, className, titleText, subtitleText, closeAction) {
+    let panel = document.getElementById(id);
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.id = id;
+      panel.className = 'qepop anchored-panel-qepop ' + className;
+      panel.setAttribute('role', 'dialog');
+      panel.setAttribute('aria-hidden', 'true');
+      (document.querySelector('.phone') || document.body).appendChild(panel);
+    }
+    panel.innerHTML = '' +
+      '<div class="anchored-qepop-head">' +
+        '<div>' +
+          '<div class="anchored-qepop-title">' + (titleText || '') + '</div>' +
+          '<div class="anchored-qepop-sub">' + (subtitleText || '') + '</div>' +
+        '</div>' +
+        '<button type="button" class="anchored-qepop-close" onclick="' + closeAction + '" aria-label="Tancar">×</button>' +
+      '</div>' +
+      '<div class="anchored-qepop-body" id="' + id + '-body"></div>';
+    return panel;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Email meeting/call retained from V221
+  // ---------------------------------------------------------------------------
+  function getEmailAnchor() {
+    return document.querySelector('.email-active-card') || document.getElementById('email-panel') || document.querySelector('.email-panel');
+  }
+
+  window.closeEmailActionQepop = function () {
+    document.querySelectorAll('.email-action-qepop.open').forEach(function (panel) {
+      panel.classList.remove('open');
+      panel.setAttribute('aria-hidden', 'true');
+    });
+  };
+
+  function openEmailActionQepop(actionKey, titleText, subtitleText, bodyHtml, afterRender) {
+    const anchor = getEmailAnchor();
+    if (!anchor) return;
+    closeLegacyOverlay();
+    try { if (typeof closeQaDrop === 'function') closeQaDrop(); } catch (e) {}
+    closeOpenQepops();
+    const id = 'email-' + actionKey + '-qepop';
+    const panel = ensureActionQepop(id, 'email-action-qepop', titleText, subtitleText, 'closeEmailActionQepop()');
+    const body = document.getElementById(id + '-body');
+    if (!body) return;
+    body.innerHTML = bodyHtml || '';
+    positionPanel(panel, anchor);
+    panel.classList.add('open');
+    panel.setAttribute('aria-hidden', 'false');
+    if (typeof afterRender === 'function') afterRender(panel, body);
+  }
+
+  window.openMeetingFromEmail = function () {
+    const activeEmail = getActiveEmail();
+    const emailId = findOrCreateEmail(activeEmail.subject, activeEmail.from, activeEmail.fromName, activeEmail.dateLabel, activeEmail.attachments, activeEmail.messageId);
+    const duplicates = findDuplicateEventsForEmail(emailId, ['Meeting', 'Call']);
+    const bodyHtml = duplicates.length
+      ? buildDupConfirmScreen(tr('DUP_WARN_MT'), duplicates, 'openMeetingForm()', 'openQuickActions()')
+      : _renderMeetingForm('');
+    openEmailActionQepop('meeting', tr('OV_MEETING'), activeEmail.subject || tr('EMAIL_ACTIVE'), bodyHtml, function () {
+      try { onMtCategoryChange(); } catch (e) {}
+    });
+  };
+
+  window.openCallFromEmail = function () {
+    const activeEmail = getActiveEmail();
+    openEmailActionQepop(
+      'call',
+      tr('OV_CALL'),
+      (activeEmail && activeEmail.subject) || tr('EMAIL_ACTIVE'),
+      renderCallForm({ source: 'email', sourceTaskId: null }),
+      function () {
+        const personInput = document.getElementById('call-person');
+        if (personInput) personInput.addEventListener('change', onCallPersonChange);
+      }
+    );
+  };
+
+  window.openMeetingForm = function () {
+    openEmailActionQepop(
+      'meeting',
+      tr('OV_MEETING'),
+      (getActiveEmail().subject || tr('EMAIL_ACTIVE')),
+      _renderMeetingForm('<div class="dup-warn"><div class="dup-warn-msg">' + tr('DUP_WARN_MT') + '</div></div>'),
+      function () { try { onMtCategoryChange(); } catch (e) {} }
+    );
+  };
+
+  // ---------------------------------------------------------------------------
+  // Task edit/meeting/call fixed in V222
+  // ---------------------------------------------------------------------------
+  function getTaskAnchor(taskId) {
+    return document.querySelector('.card[data-task-id="' + String(taskId).replace(/"/g, '\\"') + '"]');
+  }
+
+  window.closeTaskActionQepop = function () {
+    document.querySelectorAll('.task-action-qepop.open').forEach(function (panel) {
+      panel.classList.remove('open');
+      panel.setAttribute('aria-hidden', 'true');
+    });
+  };
+
+  function openTaskActionQepop(taskId, actionKey, titleText, subtitleText, bodyHtml, afterRender) {
+    const anchor = getTaskAnchor(taskId);
+    if (!anchor) return;
+    closeLegacyOverlay();
+    try { if (typeof closeQaDrop === 'function') closeQaDrop(); } catch (e) {}
+    closeOpenQepops();
+    const id = 'task-' + actionKey + '-qepop-' + String(taskId).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const panel = ensureActionQepop(id, 'task-action-qepop', titleText, subtitleText, 'closeTaskActionQepop()');
+    const body = document.getElementById(id + '-body');
+    if (!body) return;
+    body.innerHTML = bodyHtml || '';
+    positionPanel(panel, anchor);
+    panel.classList.add('open');
+    panel.setAttribute('aria-hidden', 'false');
+    if (typeof afterRender === 'function') afterRender(panel, body);
+  }
+
+  function renderTaskMeetingForm(taskId) {
+    const task = findById(taskId);
+    if (!task) return '';
+    const todayStr = todayIso();
+    return `
+      <div class="cf-wrap">
+        <div class="cf-section">
+          <div class="cf-label">${tr('CF_TITLE')}</div>
+          <input class="cf-input" id="mt-title" value="${escapeHtml(tr('QA_MEETING') + ': ' + task.title)}" placeholder="${tr('CF_TITLE_PH')}" />
+        </div>
+        <div class="cf-section">
+          <div class="cf-label">${tr('CF_CATEGORY')}</div>
+          <select class="cf-select" id="mt-category">
+            <option value="Meeting" selected>${tr('CAT_MEETING')}</option>
+            <option value="Call">${tr('CAT_CALL')}</option>
+          </select>
+        </div>
+        <div class="cf-section cf-grid2">
+          <div><div class="cf-label">${tr('MT_DATE_LBL')}</div><input class="cf-input" id="mt-date" type="date" value="${todayStr}" /></div>
+          <div><div class="cf-label">${tr('MT_TIME_LBL')}</div><input class="cf-input" id="mt-time" type="time" value="09:00" /></div>
+        </div>
+        <div class="cf-section">
+          <div class="cf-label">${tr('MT_PERSON_LBL')}</div>
+          <input class="cf-input" id="mt-person" list="mt-people" value="" placeholder="${tr('MT_PERSON_PH')}" />
+          <datalist id="mt-people">${PEOPLE.map(person => `<option value="${escapeHtml(person.name || '')}"></option>`).join('')}</datalist>
+        </div>
+        <div class="cf-section"><div class="cf-label">${tr('MT_PLACE_LBL')}</div><input class="cf-input" id="mt-place" type="text" placeholder="${tr('MT_PLACE_PH')}" /></div>
+        <div class="cf-section"><div class="cf-label">${tr('MT_NOTE_LBL')}</div><textarea class="cf-input" id="mt-note" rows="3" style="resize:vertical"></textarea></div>
+        <div class="cf-actions">
+          <button class="cf-btn" onclick="closeTaskActionQepop()">${tr('CF_BACK')}</button>
+          <button class="cf-btn primary" onclick="saveMeetingFromTask('${taskId}')">${tr('MT_SAVE')}</button>
+        </div>
+        <div class="cf-flash" id="mt-flash"></div>
+      </div>`;
+  }
+
+  window.proceedOpenEditTask = function (taskId) {
+    const task = findById(taskId);
+    const formConfig = getTaskFormConfig('edit', taskId);
+    if (!formConfig || !task) return;
+    formConfig.backAction = 'closeTaskActionQepop()';
+    openTaskActionQepop(taskId, 'edit', formConfig.overlayTitle, formConfig.overlaySubtitle || task.title || '', renderTaskForm(formConfig), function () {
+      try { onRepeatToggle(); } catch (e) {}
+      try { onRepeatTypeChange(); } catch (e) {}
+      try { updateRepeatSummary(); } catch (e) {}
+      try { onFollowupToggle(); } catch (e) {}
+      try { onFollowupTypeChange(); } catch (e) {}
+      try { updateFollowupSummary(); } catch (e) {}
+      try { onCreateStatusChange(); } catch (e) {}
+    });
+  };
+
+  window.openEditTask = function (taskId) {
+    const task = findById(taskId);
+    if (!task) return;
+    if (task.status === 'completed') {
+      openTaskActionQepop(taskId, 'edit-confirm', tr('EDIT_DONE_TITLE'), tr('EDIT_DONE_SUB'), `
+        <div class="cf-wrap">
+          <div style="font-size:13px;color:var(--t);line-height:1.45">${tr('EDIT_DONE_MSG')}</div>
+          <div class="cf-actions">
+            <button class="cf-btn" type="button" onclick="closeTaskActionQepop()">${tr('EDIT_DONE_CANCEL')}</button>
+            <button class="cf-btn primary" type="button" onclick="proceedOpenEditTask('${taskId}')">${tr('EDIT_DONE_CONTINUE')}</button>
+          </div>
+        </div>`);
+      return;
+    }
+    proceedOpenEditTask(taskId);
+  };
+
+  window.openMeetingFromTask = function (taskId) {
+    const task = findById(taskId);
+    if (!task) return;
+    openTaskActionQepop(taskId, 'meeting', tr('OV_MEETING'), task.title || '', renderTaskMeetingForm(taskId));
+  };
+
+  window.openCallFromTask = function (taskId) {
+    const task = findById(taskId);
+    if (!task) return;
+    const bodyHtml = renderCallForm({ source: 'task', sourceTaskId: taskId }).replace('onclick="closeOv()"', 'onclick="closeTaskActionQepop()"');
+    openTaskActionQepop(taskId, 'call', tr('OV_CALL'), task.title || tr('AT_CALL'), bodyHtml, function () {
+      const personInput = document.getElementById('call-person');
+      if (personInput) personInput.addEventListener('change', onCallPersonChange);
+    });
+  };
+
+  if (typeof window.saveTaskForm === 'function') {
+    const originalSaveTaskForm = window.saveTaskForm;
+    window.saveTaskForm = function (mode, taskId) {
+      originalSaveTaskForm.apply(this, arguments);
+      const flash = document.getElementById('cf-flash');
+      if (mode === 'edit' && flash && flash.classList.contains('ok')) {
+        setTimeout(function () { closeTaskActionQepop(); }, 850);
+      }
+    };
+  }
+
+  if (typeof window.saveMeetingFromTask === 'function') {
+    const originalSaveMeetingFromTask = window.saveMeetingFromTask;
+    window.saveMeetingFromTask = function (sourceTaskId) {
+      originalSaveMeetingFromTask.apply(this, arguments);
+      const flash = document.getElementById('mt-flash');
+      if (flash && flash.classList.contains('ok')) {
+        setTimeout(function () { closeTaskActionQepop(); }, 900);
+      }
+    };
+  }
+
+  if (typeof window.saveCallTask === 'function') {
+    const originalSaveCallTask = window.saveCallTask;
+    window.saveCallTask = function (source, sourceTaskId) {
+      originalSaveCallTask.apply(this, arguments);
+      const flash = document.getElementById('call-flash');
+      if (flash && flash.classList.contains('ok')) {
+        setTimeout(function () {
+          if ((source || 'email') === 'email') closeEmailActionQepop();
+          else closeTaskActionQepop();
+        }, 900);
+      }
+    };
+  }
+
+  document.addEventListener('click', function (event) {
+    const openTaskPanel = document.querySelector('.task-action-qepop.open');
+    if (!openTaskPanel) return;
+    if (openTaskPanel.contains(event.target)) return;
+    if (event.target.closest && event.target.closest('#qa-drop')) return;
+    const card = event.target.closest ? event.target.closest('.card[data-task-id]') : null;
+    if (card) return;
+    closeTaskActionQepop();
+  }, true);
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && document.querySelector('.task-action-qepop.open')) {
+      event.preventDefault();
+      closeTaskActionQepop();
+    }
+  }, true);
+})();
+</script>
+<!-- === END V222 PATCH === -->
 
 </body>
 </html>
