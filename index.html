@@ -4201,8 +4201,11 @@ function enhanceRenderedTaskCards() {
     const card = document.querySelector(`.card[data-task-id="${task.task_id}"]`);
     if (!card) return;
 
-    if (selectedTaskIds.has(task.task_id)) card.classList.add('card-linked-from-email');
-    else card.classList.remove('card-linked-from-email');
+    const isLinkedToActiveEmail = selectedTaskIds.has(task.task_id);
+    card.classList.toggle('card-linked-from-email', isLinkedToActiveEmail);
+    card.classList.toggle('compact-expanded', isLinkedToActiveEmail || isCompactTaskCardExpanded(task.task_id));
+    const compactRow = card.querySelector('.task-compact-row');
+    if (compactRow) compactRow.setAttribute('aria-expanded', (isLinkedToActiveEmail || isCompactTaskCardExpanded(task.task_id)) ? 'true' : 'false');
 
     const ci = card.querySelector('.ci');
     if (!ci) return;
@@ -4775,7 +4778,10 @@ function renderCard(t) {
   const compactPriority = t.priority || 4;
 
   const fb = (!isAssignedToMe && people.length) ? '<div class="fbar"></div>' : '';
-  return `<div class="card task-priority-${t.priority || 4} ${shouldRenderTaskCardExpanded(t.task_id) ? 'compact-expanded' : ''}" data-task-id="${t.task_id}">
+  const isLinkedToActiveEmail = isTaskLinkedToActiveEmail(t.task_id);
+  const expandedClass = shouldRenderTaskCardExpanded(t.task_id) ? 'compact-expanded' : '';
+  const linkedClass = isLinkedToActiveEmail ? 'card-linked-from-email' : '';
+  return `<div class="card task-priority-${t.priority || 4} ${expandedClass} ${linkedClass}" data-task-id="${t.task_id}">
     ${fb}
     <div class="task-compact-row" tabindex="0" role="button" aria-expanded="${shouldRenderTaskCardExpanded(t.task_id) ? 'true' : 'false'}" aria-label="${escapeHtml((shouldRenderTaskCardExpanded(t.task_id) ? tr('COMPACT_COLLAPSE_TASK') : tr('COMPACT_EXPAND_TASK')) + ': ' + (t.title || tr('EMPTY_TITLE')))}" onclick="toggleCompactTaskCard('${t.task_id}', event)" onkeydown="onCompactTaskCardKeydown('${t.task_id}', event)">
       <span class="task-compact-title">${escapeHtml(t.title || tr('EMPTY_TITLE'))}</span>
@@ -5167,20 +5173,21 @@ function getGroups(gb) {
 
   // Comentarios en castellano
   // Base comun: se respetan finalizadas/no finalizadas y se evita duplicar reuniones/llamadas hijas.
-  // En cualquier vista agrupada se conservan todas las tareas disponibles.
+  // Active-email linked tasks remain visible so they can always be highlighted at the top.
   const visibleTasks = TASKS.filter(t => {
+    const isLinkedToActiveEmail = !!(t && linkedTaskIds.has(t.task_id));
     const isCompleted = t.status === 'completed';
-    if (!SHOW_COMPLETED_IN_GROUPS && isCompleted) return false;
-    if (!SHOW_PENDING_IN_GROUPS && !isCompleted) return false;
+    if (!SHOW_COMPLETED_IN_GROUPS && isCompleted && !isLinkedToActiveEmail) return false;
+    if (!SHOW_PENDING_IN_GROUPS && !isCompleted && !isLinkedToActiveEmail) return false;
 
-    if (t.category === 'Meeting' || t.category === 'Call') {
+    if ((t.category === 'Meeting' || t.category === 'Call') && !isLinkedToActiveEmail) {
       if (getRelatedIds(t.task_id, 'task_task').length > 0) return false;
     }
 
     return true;
   });
 
-  const filteredTasks = visibleTasks.filter(t => taskMatchesAllFilters(t));
+  const filteredTasks = visibleTasks.filter(t => taskMatchesAllFilters(t) || linkedTaskIds.has(t.task_id));
 
   // Comentarios en castellano
   // Vista AVUI: solo muestra tareas vencidas/hoy y un segundo grupo con las de mañana.
@@ -5191,11 +5198,17 @@ function getGroups(gb) {
     const activeTodayFilter = String(window.todayViewFilter || 'all').toLowerCase();
 
     const todayBaseTasks = filteredTasks.filter(t => isTaskForTodayGroup(t, today));
-    const todayTasks = activeTodayFilter === 'all'
+    const activeEmailLinkedTasks = filteredTasks.filter(t => t && linkedTaskIds.has(t.task_id));
+    const todayTasksBase = activeTodayFilter === 'all'
       ? todayBaseTasks
       : todayBaseTasks.filter(t => matchesTodayViewFilter(t, today, activeTodayFilter));
+    const todayTasksById = new Map();
+    [...activeEmailLinkedTasks, ...todayTasksBase].forEach(task => {
+      if (task && !todayTasksById.has(task.task_id)) todayTasksById.set(task.task_id, task);
+    });
+    const todayTasks = Array.from(todayTasksById.values());
 
-    const todayIds = new Set(todayBaseTasks.map(t => t.task_id));
+    const todayIds = new Set(todayTasks.map(t => t.task_id));
     const tomorrowTasks = filteredTasks.filter(t => !todayIds.has(t.task_id) && isTaskForTomorrowGroup(t, tomorrow));
 
     const todayGroups = [
@@ -11937,6 +11950,31 @@ window.render = function() {
 #legendQepop .legend-task-icon .aw{
   transform:scale(.82);
   transform-origin:center;
+}
+
+/* === V231: renderCard Task compacta per defecte a tots els agrupadors === */
+/* Comments in English: force the same compact behavior in AVUI and every grouped view, including hover:none environments. */
+#cnt .card:not(.email-active-card):not(.compact-expanded):not(.card-linked-from-email) .ci {
+  display: none !important;
+}
+#cnt .card:not(.email-active-card):not(.compact-expanded):not(.card-linked-from-email) .task-compact-row {
+  display: grid !important;
+}
+#cnt .card.compact-expanded .ci,
+#cnt .card.card-linked-from-email .ci {
+  display: block !important;
+}
+#cnt .card.compact-expanded .task-compact-row,
+#cnt .card.card-linked-from-email .task-compact-row {
+  display: none !important;
+}
+#cnt .card.card-linked-from-email {
+  border-color: #2B5CE6 !important;
+  background: #F7FAFF !important;
+  box-shadow: 0 0 0 2px rgba(43,92,230,.18), 0 4px 14px rgba(43,92,230,.13) !important;
+}
+#cnt .card.card-linked-from-email::before {
+  background: #2B5CE6 !important;
 }
 </style>
 <script>
