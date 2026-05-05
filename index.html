@@ -13,9 +13,11 @@ function openCreateTaskFormBlank(ev) {
   if (!formConfig) return;
   formConfig._emailMode = 'none';
   formConfig.overlaySubtitle = tr('OV_CREATE_TASK');
+  formConfig.saveAction = "saveTaskForm('create', null, 'none')";
+  formConfig.backAction = 'closeTaskCreatePopdown()';
   formConfig.notesReadOnly = false;
   formConfig._existBanner = '';
-  formConfig.backAction = 'closeTaskCreatePopdown()';
+  formConfig.emailId = null;
   formConfig.values.title = '';
   formConfig.values.notes = '';
   toggleTaskCreatePopdown(formConfig, ev && ev.currentTarget ? ev.currentTarget : null);
@@ -378,41 +380,100 @@ function mountTaskFormPopdown(formConfig, panel) {
 }
 
 function closeTaskCreatePopdown() {
+  const drop = document.getElementById('qa-drop');
+  if (drop && drop.dataset.mode === 'task-create') {
+    drop.classList.remove('open');
+    drop.innerHTML = '';
+    drop.setAttribute('role', 'menu');
+    drop.setAttribute('aria-label', 'Accions ràpides');
+    delete drop.dataset.mode;
+    delete drop.dataset.taskId;
+    delete drop.dataset.followupSourceTaskId;
+    delete drop.dataset.followupSourceKind;
+    drop.style.top = '';
+    drop.style.bottom = '';
+    drop.style.left = '';
+    drop.style.right = '';
+    drop.style.width = '';
+    drop.style.maxHeight = '';
+    drop.style.overflowY = '';
+  }
   const panel = document.getElementById('taskCreatePopdown');
-  if (!panel) return;
-  panel.classList.add('hidden');
-  panel.setAttribute('aria-hidden', 'true');
-  panel.innerHTML = '';
+  if (panel) {
+    panel.classList.add('hidden');
+    panel.setAttribute('aria-hidden', 'true');
+    panel.innerHTML = '';
+  }
   if (lastCreateButton && typeof lastCreateButton.focus === 'function') requestAnimationFrame(() => lastCreateButton.focus());
 }
 
 function toggleTaskCreatePopdown(formConfig, triggerBtn) {
-  const panel = document.getElementById('taskCreatePopdown');
-  if (!panel) return;
-  const isOpen = !panel.classList.contains('hidden');
+  const drop = document.getElementById('qa-drop');
+  if (!drop) return;
+  const trigger = triggerBtn || document.activeElement;
+  const isOpen = drop.classList.contains('open') && drop.dataset.mode === 'task-create';
   if (isOpen) {
     closeTaskCreatePopdown();
     return;
   }
-  lastCreateButton = triggerBtn || document.activeElement;
-  panel.classList.remove('hidden');
-  panel.setAttribute('aria-hidden', 'false');
-  mountTaskFormPopdown(formConfig, panel);
+  lastCreateButton = trigger;
+  try { closeOv(); } catch (e) {}
+  try { closeSecondaryMenu(); } catch (e) {}
+  try { closeAnchoredPanelQepop(false); } catch (e) {}
+  closeQaDrop();
+  drop.dataset.mode = 'task-create';
+  drop.setAttribute('role', 'dialog');
+  drop.setAttribute('aria-label', formConfig.overlayTitle || tr('OV_CREATE_TASK'));
+  mountTaskFormPopdown(formConfig, drop);
+  positionTaskCreateQaDrop(drop, trigger);
+  drop.classList.add('open');
 }
 
+function positionTaskCreateQaDrop(drop, triggerEl) {
+  if (!drop) return;
+  const phone = document.querySelector('.phone') || document.body;
+  const phoneRect = phone.getBoundingClientRect();
+  const triggerRect = triggerEl && triggerEl.getBoundingClientRect ? triggerEl.getBoundingClientRect() : phoneRect;
+  const margin = 10;
+  const gap = 6;
+  const maxWidth = Math.max(260, phoneRect.width - (margin * 2));
+  const width = Math.min(430, maxWidth);
+  const minLeft = margin;
+  const maxLeft = Math.max(margin, phoneRect.width - width - margin);
+  let left = triggerRect.left - phoneRect.left;
+  left = Math.max(minLeft, Math.min(left, maxLeft));
+  drop.style.left = left + 'px';
+  drop.style.right = 'auto';
+  drop.style.width = width + 'px';
+  drop.style.bottom = 'auto';
+  const viewportH = window.innerHeight || document.documentElement.clientHeight;
+  const availableBelow = viewportH - triggerRect.bottom - margin;
+  const availableAbove = triggerRect.top - margin;
+  const maxHeight = Math.max(180, Math.min(560, Math.max(availableBelow, availableAbove) - gap));
+  drop.style.maxHeight = maxHeight + 'px';
+  drop.style.overflowY = 'auto';
+  let top = triggerRect.bottom - phoneRect.top + gap;
+  if (availableBelow < 260 && availableAbove > availableBelow) {
+    top = Math.max(margin, triggerRect.top - phoneRect.top - maxHeight - gap);
+  }
+  drop.style.top = top + 'px';
+}
+
+
 document.addEventListener('click', function(ev) {
-  const panel = document.getElementById('taskCreatePopdown');
-  if (!panel || panel.classList.contains('hidden')) return;
-  const actions = document.querySelector('.header-actions');
-  if (actions && !actions.contains(ev.target) && !panel.contains(ev.target)) {
+  const drop = document.getElementById('qa-drop');
+  if (!drop || drop.dataset.mode !== 'task-create' || !drop.classList.contains('open')) return;
+  const trigger = lastCreateButton;
+  const clickedTrigger = trigger && trigger.contains && trigger.contains(ev.target);
+  if (!drop.contains(ev.target) && !clickedTrigger) {
     closeTaskCreatePopdown();
   }
 });
 
 document.addEventListener('keydown', function(ev) {
   if (ev.key === 'Escape') {
-    const panel = document.getElementById('taskCreatePopdown');
-    if (panel && !panel.classList.contains('hidden')) {
+    const drop = document.getElementById('qa-drop');
+    if (drop && drop.dataset.mode === 'task-create' && drop.classList.contains('open')) {
       ev.preventDefault();
       closeTaskCreatePopdown();
     }
@@ -3059,7 +3120,7 @@ try {
  </div>
  <div class="header-actions">
  <div id="taskCreatePopdown" class="task-popdown hidden" role="dialog" aria-modal="false" aria-hidden="true"></div>
- <button class="btn-menu btn-legend btn-create-task" type="button" onclick="openCreateTaskFromEmail(event)" data-i18n-title="CREATE_TASK_NO_EMAIL" data-i18n-aria-label="CREATE_TASK_NO_EMAIL" title="Crear una nova tasca" aria-label="Crear una nova tasca"><svg class="tf-pencil-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+ <button class="btn-menu btn-legend btn-create-task" type="button" onclick="openCreateTaskFormBlank(event)" data-i18n-title="CREATE_TASK_NO_EMAIL" data-i18n-aria-label="CREATE_TASK_NO_EMAIL" title="Crear una nova tasca" aria-label="Crear una nova tasca"><svg class="tf-pencil-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
   <path d="M5 18.5V21h2.5L18.1 10.4l-2.5-2.5L5 18.5z" fill="currentColor"></path>
   <path d="M16.4 7.1l1.1-1.1a1.4 1.4 0 0 1 2 2l-1.1 1.1-2-2z" fill="currentColor"></path>
 </svg></button>
@@ -4201,8 +4262,13 @@ function enhanceRenderedTaskCards() {
     const card = document.querySelector(`.card[data-task-id="${task.task_id}"]`);
     if (!card) return;
 
+    const isSummaryFilterActive = isSummaryViewFilterActive();
+    const isSummaryHighlighted = isSummaryFilterActive && taskMatchesActiveSummaryView(task);
     const isLinkedToActiveEmail = selectedTaskIds.has(task.task_id);
+    const isEmailSummaryMismatch = isSummaryFilterActive && isLinkedToActiveEmail && !isSummaryHighlighted;
     card.classList.toggle('card-linked-from-email', isLinkedToActiveEmail);
+    card.classList.toggle('card-summary-highlight', isSummaryHighlighted);
+    card.classList.toggle('card-email-summary-mismatch', isEmailSummaryMismatch);
     card.classList.toggle('compact-expanded', isLinkedToActiveEmail || isCompactTaskCardExpanded(task.task_id));
     const compactRow = card.querySelector('.task-compact-row');
     if (compactRow) compactRow.setAttribute('aria-expanded', (isLinkedToActiveEmail || isCompactTaskCardExpanded(task.task_id)) ? 'true' : 'false');
@@ -4265,7 +4331,7 @@ function openLinkedTaskEditor() {
   const rows = linkedTasks.map(task => {
     const proj = getRelated(task.task_id, 'task_project')[0];
     return `
-    <div class="ovrow" onclick="openEditTask('${task.task_id}')" style="align-items:flex-start">
+    <div class="ovrow" onclick="closeAnchoredPanelQepop(false);openEditTask('${task.task_id}')" style="align-items:flex-start">
       <div class="ovico" style="background:var(--sf3);color:var(--t2)"><div class="pb p${task.priority}">P${task.priority}</div></div>
       <div class="ovinf">
         <div class="ovfr">${escapeHtml(task.title)}</div>
@@ -4274,7 +4340,8 @@ function openLinkedTaskEditor() {
       <div class="ovdt">›</div>
     </div>`;
   }).join('');
-  openOv(tr('QA_EDIT'), tr('EMAIL_TASK_PICKER'), rows);
+  const anchor = document.querySelector('.email-active-card .cedit') || document.querySelector('.email-active-card') || document.activeElement;
+  openAnchoredPanelQepop(anchor, tr('QA_EDIT'), tr('EMAIL_TASK_PICKER'), rows);
 }
 
 // =============================================================================
@@ -4705,6 +4772,20 @@ function onCompactTaskCardKeydown(taskId, ev) {
   }
 }
 
+
+function isSummaryViewFilterActive() {
+  const activeFilter = String(window.summaryViewFilter || 'none').toLowerCase();
+  return !!activeFilter && activeFilter !== 'none';
+}
+
+function taskMatchesActiveSummaryView(task) {
+  if (!isSummaryViewFilterActive()) return false;
+  if (typeof window.summaryTaskMatchesFilter === 'function') {
+    return window.summaryTaskMatchesFilter(task, window.summaryViewFilter);
+  }
+  return true;
+}
+
 function renderCard(t) {
   // Resolve related entities via RELATIONS
   const proj     = getRelated(t.task_id, 'task_project')[0];
@@ -4778,10 +4859,15 @@ function renderCard(t) {
   const compactPriority = t.priority || 4;
 
   const fb = (!isAssignedToMe && people.length) ? '<div class="fbar"></div>' : '';
+  const isSummaryFilterActive = isSummaryViewFilterActive();
+  const isSummaryHighlighted = isSummaryFilterActive && taskMatchesActiveSummaryView(t);
   const isLinkedToActiveEmail = isTaskLinkedToActiveEmail(t.task_id);
+  const isEmailSummaryMismatch = isSummaryFilterActive && isLinkedToActiveEmail && !isSummaryHighlighted;
   const expandedClass = shouldRenderTaskCardExpanded(t.task_id) ? 'compact-expanded' : '';
   const linkedClass = isLinkedToActiveEmail ? 'card-linked-from-email' : '';
-  return `<div class="card task-priority-${t.priority || 4} ${expandedClass} ${linkedClass}" data-task-id="${t.task_id}">
+  const summaryClass = isSummaryHighlighted ? 'card-summary-highlight' : '';
+  const emailSummaryMismatchClass = isEmailSummaryMismatch ? 'card-email-summary-mismatch' : '';
+  return `<div class="card task-priority-${t.priority || 4} ${expandedClass} ${linkedClass} ${summaryClass} ${emailSummaryMismatchClass}" data-task-id="${t.task_id}">
     ${fb}
     <div class="task-compact-row" tabindex="0" role="button" aria-expanded="${shouldRenderTaskCardExpanded(t.task_id) ? 'true' : 'false'}" aria-label="${escapeHtml((shouldRenderTaskCardExpanded(t.task_id) ? tr('COMPACT_COLLAPSE_TASK') : tr('COMPACT_EXPAND_TASK')) + ': ' + (t.title || tr('EMPTY_TITLE')))}" onclick="toggleCompactTaskCard('${t.task_id}', event)" onkeydown="onCompactTaskCardKeydown('${t.task_id}', event)">
       <span class="task-compact-title">${escapeHtml(t.title || tr('EMPTY_TITLE'))}</span>
@@ -5713,6 +5799,16 @@ function linkActiveEmailToTask(taskId, sourceEl) {
   return true;
 }
 
+
+function openLinkTaskFromEmailStatus(ev) {
+  if (ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+  }
+  openLinkTask(ev && ev.currentTarget ? ev.currentTarget : document.activeElement);
+  return false;
+}
+
 function renderEmailPanel() {
   const panel = document.getElementById('email-panel');
   if (!panel) return;
@@ -5759,12 +5855,30 @@ function renderEmailPanel() {
       <a href="#" class="email-unlink-link email-unlink-x" onclick="event.preventDefault();unlinkActiveEmailFromTask('${task.task_id}')" title="${escapeHtml(tr('UNLINK_EMAIL_FROM_TASK'))}" aria-label="${escapeHtml(tr('UNLINK_EMAIL'))}">×</a>
     </span>`;
 
+  const buildUnlinkedTaskAction = () => `
+    <a href="#" class="task-rel-chip email-task-none-link" onclick="openLinkTaskFromEmailStatus(event)" title="${escapeHtml(tr('QA_LINK'))}" aria-label="${escapeHtml(tr('QA_LINK'))}">
+      <span class="task-rel-ico" aria-hidden="true">🔗</span><span class="task-rel-text">${escapeHtml(statusText)}</span>
+    </a>`;
+
+  const orderedLinkedTasks = (() => {
+    const seenTaskIds = new Set();
+    const result = [];
+    const addTask = task => {
+      if (!task || !task.task_id || seenTaskIds.has(task.task_id)) return;
+      seenTaskIds.add(task.task_id);
+      result.push(task);
+    };
+    addTask(primaryTask);
+    linkedTasks.forEach(addTask);
+    return result;
+  })();
+
   const linkedTaskHtml = primaryTask
     ? buildTaskLinkActions(primaryTask)
-    : `<span class="task-rel-chip"><span class="task-rel-ico" aria-hidden="true">🔗</span><span class="task-rel-text">${escapeHtml(statusText)}</span></span>`;
+    : buildUnlinkedTaskAction();
 
-  const extraTasksHtml = linkedTasks.length > 1
-    ? linkedTasks.slice(1).map(task => buildTaskLinkActions(task)).join('')
+  const extraTasksHtml = primaryTask && orderedLinkedTasks.length > 1
+    ? orderedLinkedTasks.slice(1).map(task => buildTaskLinkActions(task)).join('')
     : '';
 
   const threadSuggestedTasksHtml = threadSuggestedTasks.length
@@ -5878,7 +5992,7 @@ function openQuickActions() {
       </div>`;
 
   drop.innerHTML = `<div class="qa-list">
-    <div class="qa-item" role="menuitem" tabindex="0" onclick="closeQaDrop();openLinkTask()">
+    <div class="qa-item" role="menuitem" tabindex="0" onclick="event.preventDefault();event.stopPropagation();openLinkTask(document.querySelector('.email-active-card .cedit') || this)">
       <div class="qa-ico" style="background:var(--sf3);color:var(--t2)">🔗</div>
       <div class="qa-txt">
         <div class="qa-title">${tr('QA_LINK')}</div>
@@ -5946,7 +6060,13 @@ function closeQaDrop() {
     delete drop.dataset.taskId;
     delete drop.dataset.followupSourceTaskId;
     delete drop.dataset.followupSourceKind;
+    delete drop.dataset.mode;
+    drop.setAttribute('role', 'menu');
+    drop.setAttribute('aria-label', 'Accions ràpides');
     drop.style.top = '';
+    drop.style.left = '';
+    drop.style.right = '';
+    drop.style.width = '';
     drop.style.bottom = '';
     drop.style.maxHeight = '';
     drop.style.overflowY = '';
@@ -6116,24 +6236,31 @@ function openTaskCardActions(taskId, btn) {
 }
 
 
-function openLinkTask() {
+function openLinkTask(triggerEl) {
   try { closeTaskCreatePopdown(); } catch (e) {}
+  try { closeQaDrop(); } catch (e) {}
   const ae = getActiveEmail();
+  if (!ae) return;
+  const anchor = triggerEl || document.querySelector('.email-active-card .cedit') || document.querySelector('.email-task-none-link') || document.activeElement;
   const content = `
     <div class="link-wrap">
       <input class="link-search" id="link-q" placeholder="${tr('LINK_SEARCH_PH')}" oninput="renderLinkList(this.value)" />
       <div class="link-hint">
         ${tr('LINK_HINT')}
-        <span class="link-badge">📧 ${escapeHtml(ae.from)} · ${escapeHtml(ae.dateLabel)}</span>
+        <span class="link-badge">📧 ${escapeHtml(ae.from || '')} · ${escapeHtml(ae.dateLabel || '')}</span>
       </div>
     </div>
     <div class="link-flash" id="link-flash"></div>
     <div id="link-list"></div>
     <div style="padding:12px 16px">
-      <button class="gs" style="width:100%" onclick="openQuickActions()">${tr('LINK_BACK')}</button>
+      <button class="gs" style="width:100%" onclick="closeAnchoredPanelQepop(false);openQuickActions()">${tr('LINK_BACK')}</button>
     </div>`;
-  openOv(tr('OV_LINK_TASK'), ae.subject || tr('EMAIL_ACTIVE'), content);
+  openAnchoredPanelQepop(anchor, tr('OV_LINK_TASK'), ae.subject || tr('EMAIL_ACTIVE'), content);
   renderLinkList('');
+  requestAnimationFrame(() => {
+    const input = document.getElementById('link-q');
+    if (input && typeof input.focus === 'function') input.focus();
+  });
 }
 
 function renderLinkList(filterText) {
@@ -6185,6 +6312,7 @@ function showLinkFlash(msg, kind) {
 function linkEmailToTask(taskId) {
   try { closeTaskCreatePopdown(); } catch (e) {}
   try { closeQaDrop(); } catch (e) {}
+  try { closeAnchoredPanelQepop(false); } catch (e) {}
   try { closeOv(); } catch (e) {}
   const ae = getActiveEmail();
   const t = TASKS.find(x => x.task_id === taskId);
@@ -7047,6 +7175,8 @@ function openCreateTaskForm(ev) {
 
   formConfig._existBanner = buildExistingActionsInfo(emailId);
   formConfig.emailId = emailId;
+  formConfig._emailMode = 'linked';
+  formConfig.saveAction = "saveTaskForm('create', null, 'linked')";
   formConfig.mode = 'create';
   formConfig.backAction = 'closeTaskCreatePopdown()';
 
@@ -7062,23 +7192,21 @@ function proceedOpenEditTask(taskId) {
 function openEditTask(taskId) {
   const task = TASKS.find(item => item.task_id === taskId);
   if (task && task.status === 'completed') {
-    openOv(
-      tr('EDIT_DONE_TITLE'),
-      tr('EDIT_DONE_SUB'),
-      `<div class="cf-wrap">
+    const anchor = document.querySelector(`[data-task-id="${taskId}"] .cedit`) || document.querySelector(`[data-task-id="${taskId}"]`) || document.activeElement;
+    const content = `<div class="cf-wrap">
         <div style="font-size:13px;color:var(--t);line-height:1.45">${tr('EDIT_DONE_MSG')}</div>
         <div class="cf-actions">
-          <button class="cf-btn" type="button" onclick="closeOv()">${tr('EDIT_DONE_CANCEL')}</button>
-          <button class="cf-btn primary" type="button" onclick="closeOv();proceedOpenEditTask('${taskId}')">${tr('EDIT_DONE_CONTINUE')}</button>
+          <button class="cf-btn" type="button" onclick="closeAnchoredPanelQepop(true)">${tr('EDIT_DONE_CANCEL')}</button>
+          <button class="cf-btn primary" type="button" onclick="closeAnchoredPanelQepop(false);proceedOpenEditTask('${taskId}')">${tr('EDIT_DONE_CONTINUE')}</button>
         </div>
-      </div>`
-    );
+      </div>`;
+    openAnchoredPanelQepop(anchor, tr('EDIT_DONE_TITLE'), tr('EDIT_DONE_SUB'), content);
     return;
   }
   proceedOpenEditTask(taskId);
 }
 
-function saveTaskForm(mode, taskId) {
+function saveTaskForm(mode, taskId, emailMode) {
   const payload = getTaskFormPayload();
   if (!payload.title) {
     showCreateFlash(tr('EMPTY_TITLE'), 'err');
@@ -7130,10 +7258,11 @@ function saveTaskForm(mode, taskId) {
   }
 
   const activeEmail = getActiveEmail();
+  const shouldLinkEmail = emailMode !== 'none' && !!activeEmail;
   const projectId = findOrCreateProject(payload.projectName);
   const ownerId = payload.ownerName ? findOrCreatePerson(payload.ownerName) : null;
   const providerId = payload.providerName ? findOrCreateProvider(payload.providerName) : null;
-  const emailId = findOrCreateEmail(activeEmail.subject, activeEmail.from, activeEmail.fromName, activeEmail.dateLabel, activeEmail.attachments, activeEmail.messageId);
+  const emailId = shouldLinkEmail ? findOrCreateEmail(activeEmail.subject, activeEmail.from, activeEmail.fromName, activeEmail.dateLabel, activeEmail.attachments, activeEmail.messageId) : null;
   let timeEntryId = null;
   if (payload.timeMinutes > 0) {
     timeEntryId = nextId('TIM');
@@ -7165,7 +7294,7 @@ function saveTaskForm(mode, taskId) {
     created_at: new Date().toISOString(),
   });
   addRelation(taskIdNew, projectId, 'task_project');
-  addRelation(taskIdNew, emailId, 'task_email');
+  if (emailId) addRelation(taskIdNew, emailId, 'task_email');
   addRelation(taskIdNew, MY_PERSON_ID, 'task_person');
   if (ownerId && ownerId !== MY_PERSON_ID) addRelation(taskIdNew, ownerId, 'task_person');
   if (providerId) addRelation(taskIdNew, providerId, 'task_provider');
@@ -7177,7 +7306,7 @@ function saveTaskForm(mode, taskId) {
   try { render(); } catch (error) {}
   schedulePersistence();
   showCreateFlash(tr('TASK_CREATED'), 'ok');
-  setTimeout(() => { try { closeOv(); } catch (error) {} }, 900);
+  setTimeout(() => { try { closeTaskCreatePopdown(); } catch (error) {} }, 900);
 }
 
 function showCreateFlash(message, kind) {
@@ -11976,6 +12105,244 @@ window.render = function() {
 #cnt .card.card-linked-from-email::before {
   background: #2B5CE6 !important;
 }
+/* === V232: clickable unlinked email status === */
+.email-active-card .email-task-none-link {
+  cursor: pointer;
+}
+.email-active-card .email-task-none-link:focus-visible {
+  outline: 2px solid var(--ac);
+  outline-offset: 2px;
+}
+/* === V233: Link-to-task menu as anchored qepop === */
+#anchoredPanelQepop #link-list {
+  max-height: min(330px, calc(100vh - 230px));
+  overflow-y: auto;
+}
+#anchoredPanelQepop #link-list::-webkit-scrollbar {
+  width: 3px;
+}
+#anchoredPanelQepop #link-list::-webkit-scrollbar-thumb {
+  background: var(--bd2);
+  border-radius: 2px;
+}
+
+/* === V234: crear tasca dins qa-drop === */
+#qa-drop[data-mode="task-create"]{
+  z-index:70;
+  overflow:auto !important;
+}
+#qa-drop[data-mode="task-create"] .cf-wrap{
+  padding:12px;
+}
+#qa-drop[data-mode="task-create"] .cf-flash{
+  margin:10px 12px 12px;
+}
+/* === V236: resum actiu anul·la el ressaltat per email i ressalta només tasques del resum === */
+#cnt .card.card-summary-highlight{
+  border-color:#2B5CE6 !important;
+  background:#F7FAFF !important;
+  box-shadow:0 0 0 2px rgba(43,92,230,.18),0 4px 14px rgba(43,92,230,.13) !important;
+}
+#cnt .card.card-summary-highlight::before{
+  background:#2B5CE6 !important;
+}
+
+/* === V240: email active = orange outline when it does not match active RESUM filter === */
+#cnt .card.card-linked-from-email{
+  border-color:var(--bd) !important;
+  background:var(--sf) !important;
+  box-shadow:0 1px 2px rgba(28,25,23,.035) !important;
+}
+#cnt .card.card-linked-from-email::before{
+  background:#F59E0B !important;
+  width:4px !important;
+}
+#cnt .card.card-summary-highlight{
+  border-color:#2B5CE6 !important;
+  background:#F7FAFF !important;
+  box-shadow:0 0 0 2px rgba(43,92,230,.18),0 4px 14px rgba(43,92,230,.13) !important;
+}
+#cnt .card.card-summary-highlight::before{
+  background:#2B5CE6 !important;
+  width:3px !important;
+}
+#cnt .card.card-email-summary-mismatch{
+  border-color:#F59E0B !important;
+  background:#FFF8ED !important;
+  box-shadow:0 0 0 2px rgba(245,158,11,.24),0 4px 14px rgba(245,158,11,.14) !important;
+}
+#cnt .card.card-email-summary-mismatch::before{
+  background:#F59E0B !important;
+  width:4px !important;
+}
+#cnt .card.card-summary-highlight.card-linked-from-email:not(.card-email-summary-mismatch)::before{
+  background:#2B5CE6 !important;
+  width:3px !important;
+}
+.phone.summary-email-dual-active .email-active-card{
+  border-color:#F59E0B !important;
+  background:#FFF8ED !important;
+  box-shadow:0 0 0 2px rgba(245,158,11,.24),0 4px 14px rgba(245,158,11,.14) !important;
+}
+.phone.summary-email-dual-active .email-active-card::before{
+  background:#F59E0B !important;
+  width:4px !important;
+}
+.email-active-card::before{
+  background:#F59E0B !important;
+  width:4px !important;
+}
+.daily-summary-metric2.active{
+  background:var(--ac-s) !important;
+  color:#2B5CE6 !important;
+}
+.daily-summary-metric2.active .daily-summary-metric2-icon,
+.daily-summary-metric2.active .daily-summary-metric2-value{
+  color:#2B5CE6 !important;
+}
+
+/* === V241: orange highlight is the full card outline, not the left accent line === */
+#cnt .card.card-email-summary-mismatch{
+  border-color:#F59E0B !important;
+  background:#FFF8ED !important;
+  box-shadow:0 0 0 2px rgba(245,158,11,.24),0 4px 14px rgba(245,158,11,.14) !important;
+}
+#cnt .card.card-email-summary-mismatch::before,
+#cnt .card.card-linked-from-email::before{
+  width:3px !important;
+  background:#D8D5CE !important;
+}
+#cnt .card.card-email-summary-mismatch.task-priority-1::before,
+#cnt .card.card-linked-from-email.task-priority-1::before{background:#E87979 !important;}
+#cnt .card.card-email-summary-mismatch.task-priority-2::before,
+#cnt .card.card-linked-from-email.task-priority-2::before{background:#F2A65A !important;}
+#cnt .card.card-email-summary-mismatch.task-priority-3::before,
+#cnt .card.card-linked-from-email.task-priority-3::before{background:#E6C15A !important;}
+#cnt .card.card-email-summary-mismatch.task-priority-4::before,
+#cnt .card.card-linked-from-email.task-priority-4::before{background:#C9C5BC !important;}
+#cnt .card.card-summary-highlight{
+  border-color:#2B5CE6 !important;
+  background:#F7FAFF !important;
+  box-shadow:0 0 0 2px rgba(43,92,230,.18),0 4px 14px rgba(43,92,230,.13) !important;
+}
+#cnt .card.card-summary-highlight.card-linked-from-email,
+#cnt .card.card-summary-highlight.card-linked-from-email:not(.card-email-summary-mismatch){
+  border-color:#2B5CE6 !important;
+  background:#F7FAFF !important;
+  box-shadow:0 0 0 2px rgba(43,92,230,.18),0 4px 14px rgba(43,92,230,.13) !important;
+}
+#cnt .card.card-summary-highlight::before,
+#cnt .card.card-summary-highlight.card-linked-from-email::before,
+#cnt .card.card-summary-highlight.card-linked-from-email:not(.card-email-summary-mismatch)::before{
+  background:#2B5CE6 !important;
+  width:3px !important;
+}
+.phone.summary-email-dual-active .email-active-card{
+  border-color:#F59E0B !important;
+  background:#FFF8ED !important;
+  box-shadow:0 0 0 2px rgba(245,158,11,.24),0 4px 14px rgba(245,158,11,.14) !important;
+}
+.phone.summary-email-dual-active .email-active-card::before{
+  background:#9A7AEA !important;
+  width:3px !important;
+}
+
+/* === V242: active email + any active task filter follows RESUM outline behaviour === */
+.phone.email-filter-dual-active .email-active-card{
+  border-color:#F59E0B !important;
+  background:#FFF8ED !important;
+  box-shadow:0 0 0 2px rgba(245,158,11,.24),0 4px 14px rgba(245,158,11,.14) !important;
+}
+.phone.email-filter-dual-active .email-active-card::before{
+  width:3px !important;
+}
+#cnt .card.card-email-summary-mismatch{
+  border-color:#F59E0B !important;
+  background:#FFF8ED !important;
+  box-shadow:0 0 0 2px rgba(245,158,11,.24),0 4px 14px rgba(245,158,11,.14) !important;
+}
+#cnt .card.card-summary-highlight.card-linked-from-email{
+  border-color:#2B5CE6 !important;
+  background:#F7FAFF !important;
+  box-shadow:0 0 0 2px rgba(43,92,230,.18),0 4px 14px rgba(43,92,230,.13) !important;
+}
+
+
+/* === V243: orange highlight uses visible full-card outline, not box-shadow === */
+#cnt .card.card-email-summary-mismatch:not(.card-summary-highlight){
+  outline:2px solid #F59E0B !important;
+  outline-offset:-2px !important;
+  border-color:#F59E0B !important;
+  background:#FFF8ED !important;
+  box-shadow:none !important;
+}
+.phone.email-filter-dual-active .email-active-card{
+  outline:2px solid #F59E0B !important;
+  outline-offset:-2px !important;
+  border-color:#F59E0B !important;
+  background:#FFF8ED !important;
+  box-shadow:none !important;
+}
+#cnt .card.card-summary-highlight{
+  outline:none !important;
+}
+
+
+/* === V244: force visible orange outline directly on tasks linked to active email === */
+#cnt .card.card-linked-from-email:not(.card-summary-highlight),
+#cnt .card.card-linked-from-email.card-email-summary-mismatch:not(.card-summary-highlight){
+  outline:2px solid #F59E0B !important;
+  outline-offset:-2px !important;
+  border-color:#F59E0B !important;
+  background:#FFF8ED !important;
+  box-shadow:none !important;
+}
+#cnt .card.card-linked-from-email:not(.card-summary-highlight)::before,
+#cnt .card.card-linked-from-email.card-email-summary-mismatch:not(.card-summary-highlight)::before{
+  width:3px !important;
+}
+#cnt .card.card-summary-highlight,
+#cnt .card.card-summary-highlight.card-linked-from-email,
+#cnt .card.card-summary-highlight.card-email-summary-mismatch{
+  outline:none !important;
+  border-color:#2B5CE6 !important;
+  background:#F7FAFF !important;
+  box-shadow:0 0 0 2px rgba(43,92,230,.18),0 4px 14px rgba(43,92,230,.13) !important;
+}
+
+
+/* === V245: thin orange outline on active email and linked task cards === */
+#cnt .card.card-linked-from-email:not(.card-summary-highlight),
+#cnt .card.card-linked-from-email.card-email-summary-mismatch:not(.card-summary-highlight){
+  outline:1px solid #F59E0B !important;
+  outline-offset:-1px !important;
+  border-color:#F59E0B !important;
+  background:#FFF8ED !important;
+  box-shadow:none !important;
+}
+.phone .email-active-card{
+  outline:1px solid #F59E0B !important;
+  outline-offset:-1px !important;
+  border-color:#F59E0B !important;
+  background:#FFF8ED !important;
+  box-shadow:none !important;
+}
+#cnt .card.card-summary-highlight,
+#cnt .card.card-summary-highlight.card-linked-from-email,
+#cnt .card.card-summary-highlight.card-email-summary-mismatch{
+  outline:none !important;
+  border-color:#2B5CE6 !important;
+  background:#F7FAFF !important;
+  box-shadow:0 0 0 2px rgba(43,92,230,.18),0 4px 14px rgba(43,92,230,.13) !important;
+}
+
+
+/* === V246: selected summary metric gets a thin blue outline === */
+.daily-summary-metric2.active{
+  outline:1px solid #2B5CE6 !important;
+  outline-offset:-1px !important;
+  box-shadow:none !important;
+}
 </style>
 <script>
 // V229: Replace legend emoji placeholders with the same icon HTML used by renderCard Task.
@@ -12151,3 +12518,149 @@ window.render = function() {
 })();
 </script>
 <!-- === END TaskFlow V230 === -->
+
+
+<!-- === TaskFlow V240: mark dual active context for email card outline === -->
+<script>
+(function initEmailSummaryDualStateV240(){
+  function isSummaryActiveV240() {
+    const key = String(window.summaryViewFilter || 'none').toLowerCase();
+    return !!key && key !== 'none';
+  }
+
+  function updateEmailSummaryDualState() {
+    const root = document.querySelector('.phone');
+    if (!root) return;
+    let hasActiveEmailTask = false;
+    try {
+      hasActiveEmailTask = typeof getSelectedEmailContextTaskIds === 'function' && getSelectedEmailContextTaskIds().size > 0;
+    } catch (e) {}
+    root.classList.toggle('summary-email-dual-active', isSummaryActiveV240() && hasActiveEmailTask);
+  }
+
+  window.updateEmailSummaryDualState = updateEmailSummaryDualState;
+
+  const previousRender = window.render;
+  if (typeof previousRender === 'function' && !previousRender.__v240EmailSummaryDualWrapped) {
+    const wrappedRender = function(...args) {
+      const result = previousRender.apply(this, args);
+      requestAnimationFrame(updateEmailSummaryDualState);
+      return result;
+    };
+    wrappedRender.__v240EmailSummaryDualWrapped = true;
+    window.render = wrappedRender;
+  }
+
+  const previousSetSummaryViewFilter = window.setSummaryViewFilter;
+  if (typeof previousSetSummaryViewFilter === 'function' && !previousSetSummaryViewFilter.__v240EmailSummaryDualWrapped) {
+    const wrappedSetSummaryViewFilter = function(...args) {
+      const result = previousSetSummaryViewFilter.apply(this, args);
+      requestAnimationFrame(updateEmailSummaryDualState);
+      return result;
+    };
+    wrappedSetSummaryViewFilter.__v240EmailSummaryDualWrapped = true;
+    window.setSummaryViewFilter = wrappedSetSummaryViewFilter;
+  }
+
+  document.addEventListener('DOMContentLoaded', updateEmailSummaryDualState);
+  document.addEventListener('click', function(event) {
+    if (event.target && event.target.closest && event.target.closest('.daily-summary-metric2')) {
+      requestAnimationFrame(updateEmailSummaryDualState);
+    }
+  }, true);
+  requestAnimationFrame(updateEmailSummaryDualState);
+})();
+</script>
+
+
+<!-- === TaskFlow V242: active email outline with any active task filter === -->
+<script>
+(function initEmailFilterDualStateV242(){
+  function hasNonAllValues(values) {
+    if (!Array.isArray(values)) return false;
+    return values.some(value => String(value || '').toUpperCase() !== 'ALL');
+  }
+
+  function isSummaryFilterActive() {
+    const key = String(window.summaryViewFilter || 'none').toLowerCase();
+    return !!key && key !== 'none';
+  }
+
+  function isAnyTaskFilterActive() {
+    if (isSummaryFilterActive()) return true;
+    try { if (String(window.TASK_SEARCH_QUERY || '').trim()) return true; } catch (e) {}
+    try { if (hasNonAllValues(window.TASK_FILTER_GROUP_VALUES)) return true; } catch (e) {}
+    try { if (hasNonAllValues(window.TASK_FILTER_STATUS_VALUES)) return true; } catch (e) {}
+    try {
+      const todayFilter = String(window.todayViewFilter || 'all').toLowerCase();
+      if (todayFilter && todayFilter !== 'all') return true;
+    } catch (e) {}
+    return false;
+  }
+
+  function getActiveEmailTaskIds() {
+    try {
+      if (typeof getSelectedEmailContextTaskIds === 'function') return getSelectedEmailContextTaskIds();
+    } catch (e) {}
+    return new Set();
+  }
+
+  function updateEmailFilterDualState() {
+    const root = document.querySelector('.phone');
+    const linkedTaskIds = getActiveEmailTaskIds();
+    const dualActive = isAnyTaskFilterActive() && linkedTaskIds.size > 0;
+    if (root) root.classList.toggle('email-filter-dual-active', dualActive);
+
+    document.querySelectorAll('#cnt .card[data-task-id]').forEach(card => {
+      const taskId = card.getAttribute('data-task-id');
+      const linkedToActiveEmail = linkedTaskIds.has(taskId);
+      const highlightedBySummary = card.classList.contains('card-summary-highlight');
+      card.classList.toggle('card-email-summary-mismatch', dualActive && linkedToActiveEmail && !highlightedBySummary);
+    });
+  }
+
+  window.updateEmailFilterDualState = updateEmailFilterDualState;
+
+  function updateSoon() {
+    requestAnimationFrame(() => {
+      try { updateEmailFilterDualState(); } catch (e) {}
+    });
+  }
+
+  const previousRender = window.render;
+  if (typeof previousRender === 'function' && !previousRender.__v242EmailFilterDualWrapped) {
+    const wrappedRender = function(...args) {
+      const result = previousRender.apply(this, args);
+      updateSoon();
+      return result;
+    };
+    wrappedRender.__v242EmailFilterDualWrapped = true;
+    window.render = wrappedRender;
+  }
+
+  const previousSetSummaryViewFilter = window.setSummaryViewFilter;
+  if (typeof previousSetSummaryViewFilter === 'function' && !previousSetSummaryViewFilter.__v242EmailFilterDualWrapped) {
+    const wrappedSetSummaryViewFilter = function(...args) {
+      const result = previousSetSummaryViewFilter.apply(this, args);
+      updateSoon();
+      return result;
+    };
+    wrappedSetSummaryViewFilter.__v242EmailFilterDualWrapped = true;
+    window.setSummaryViewFilter = wrappedSetSummaryViewFilter;
+  }
+
+  document.addEventListener('click', function(event) {
+    if (event.target && event.target.closest && event.target.closest('.daily-summary-metric2,.filter-select,#task-search-clear')) {
+      updateSoon();
+    }
+  }, true);
+  document.addEventListener('input', function(event) {
+    if (event.target && event.target.id === 'task-search-input') updateSoon();
+  }, true);
+  document.addEventListener('change', function(event) {
+    if (event.target && event.target.closest && event.target.closest('.filter-select')) updateSoon();
+  }, true);
+  document.addEventListener('DOMContentLoaded', updateSoon);
+  updateSoon();
+})();
+</script>
