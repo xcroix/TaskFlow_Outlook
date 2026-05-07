@@ -381,7 +381,7 @@ function mountTaskFormPopdown(formConfig, panel) {
 }
 
 
-// === V321: guard dirty task forms against accidental qepop close/back ===
+// === V322: guard dirty task forms against accidental qepop close/back ===
 // Comments in English. Prevent outside-click/back close after edits and warn before explicit close.
 let TASK_FORM_DISCARD_CONFIRM_UNTIL = 0;
 
@@ -3405,7 +3405,7 @@ try {
   max-width:min(100%,260px) !important;
 }
 
-/* === V321: task type icons match rendercard email envelope style === */
+/* === V322: task type icons match rendercard email envelope style, including compact mode === */
 .email-active-title::before{
   content:none !important;
   display:none !important;
@@ -3417,11 +3417,13 @@ try {
   flex:0 0 auto;
   color:currentColor;
 }
-.task-type-ico{
+.task-type-ico,
+.compact-task-type-ico{
   color:var(--t2) !important;
   opacity:1 !important;
 }
-.task-type-ico svg{
+.task-type-ico svg,
+.compact-task-type-ico svg{
   width:16px !important;
   height:16px !important;
   stroke:currentColor !important;
@@ -3430,6 +3432,17 @@ try {
   stroke-linecap:round !important;
   stroke-linejoin:round !important;
   opacity:.72 !important;
+}
+.task-compact-title{
+  display:inline-flex !important;
+  align-items:center !important;
+  gap:6px !important;
+}
+.task-compact-title .task-compact-title-text{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
 }
 
 </style>
@@ -5204,7 +5217,7 @@ function renderCard(t) {
   return `<div class="card task-priority-${t.priority || 4} ${expandedClass} ${linkedClass} ${summaryClass} ${emailSummaryMismatchClass}" data-task-id="${t.task_id}">
     ${fb}
     <div class="task-compact-row" tabindex="0" role="button" aria-expanded="${shouldRenderTaskCardExpanded(t.task_id) ? 'true' : 'false'}" aria-label="${escapeHtml((shouldRenderTaskCardExpanded(t.task_id) ? tr('COMPACT_COLLAPSE_TASK') : tr('COMPACT_EXPAND_TASK')) + ': ' + (t.title || tr('EMPTY_TITLE')))}" onclick="toggleCompactTaskCard('${t.task_id}', event)" onkeydown="onCompactTaskCardKeydown('${t.task_id}', event)">
-      <span class="task-compact-title">${escapeHtml(t.title || tr('EMPTY_TITLE'))}</span>
+      <span class="task-compact-title"><span class="compact-task-type-ico" title="${escapeHtml(getTaskTypeLabel(t))}" aria-label="${escapeHtml(getTaskTypeLabel(t))}">${getTaskTypeIcon(t)}</span><span class="task-compact-title-text">${escapeHtml(t.title || tr('EMPTY_TITLE'))}</span></span>
       <span class="task-compact-due" style="color:${compactDueColor}" title="${tr('CF_DUE')}">${IC.hg}<span>${compactDueText}</span></span>
       <span class="task-compact-priority pb ${pcls[compactPriority]}">P${compactPriority}</span>
     </div>
