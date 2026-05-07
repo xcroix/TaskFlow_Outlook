@@ -368,6 +368,7 @@ let lastCreateButton = null;
 function mountTaskFormPopdown(formConfig, panel) {
   if (!panel) return;
   panel.innerHTML = renderTaskForm(formConfig);
+  captureTaskFormInitialState(panel);
   onRepeatToggle();
   onRepeatTypeChange();
   updateRepeatSummary();
@@ -377,6 +378,147 @@ function mountTaskFormPopdown(formConfig, panel) {
   onCreateStatusChange();
   const firstField = panel.querySelector('#cf-title');
   if (firstField && typeof firstField.focus === 'function') requestAnimationFrame(() => firstField.focus());
+}
+
+
+// === V321: guard dirty task forms against accidental qepop close/back ===
+// Comments in English. Prevent outside-click/back close after edits and warn before explicit close.
+let TASK_FORM_DISCARD_CONFIRM_UNTIL = 0;
+
+function getTaskFormFields(root) {
+  if (!root) return [];
+  return Array.from(root.querySelectorAll('input, textarea, select')).filter(el => {
+    const type = String(el.type || '').toLowerCase();
+    return type !== 'button' && type !== 'submit' && type !== 'reset';
+  });
+}
+
+function getTaskFormFieldKey(el, index) {
+  return el.id || el.name || `${el.tagName.toLowerCase()}_${index}`;
+}
+
+function getTaskFormFieldValue(el) {
+  const type = String(el.type || '').toLowerCase();
+  if (type === 'checkbox' || type === 'radio') return !!el.checked;
+  return String(el.value ?? '');
+}
+
+function getTaskFormSnapshot(root) {
+  const snapshot = {};
+  getTaskFormFields(root).forEach((el, index) => {
+    snapshot[getTaskFormFieldKey(el, index)] = getTaskFormFieldValue(el);
+  });
+  return snapshot;
+}
+
+function captureTaskFormInitialState(scope) {
+  const form = scope && scope.querySelector ? scope.querySelector('.cf-wrap') : null;
+  if (!form) return;
+  form.dataset.taskFormInitial = JSON.stringify(getTaskFormSnapshot(form));
+  form.dataset.taskFormDirty = 'false';
+  const markDirty = () => {
+    form.dataset.taskFormDirty = isTaskFormDirty(form) ? 'true' : 'false';
+    TASK_FORM_DISCARD_CONFIRM_UNTIL = 0;
+  };
+  form.addEventListener('input', markDirty, true);
+  form.addEventListener('change', markDirty, true);
+}
+
+function isTaskFormDirty(scope) {
+  const form = scope && scope.matches && scope.matches('.cf-wrap')
+    ? scope
+    : (scope && scope.querySelector ? scope.querySelector('.cf-wrap') : null);
+  if (!form || !form.dataset.taskFormInitial) return false;
+  if (form.dataset.taskFormDirty === 'true') return true;
+  try {
+    const initial = JSON.parse(form.dataset.taskFormInitial || '{}');
+    const current = getTaskFormSnapshot(form);
+    return JSON.stringify(initial) !== JSON.stringify(current);
+  } catch (e) {
+    return false;
+  }
+}
+
+function showTaskFormCloseWarning(scope) {
+  const root = scope || document;
+  const form = root.querySelector ? root.querySelector('.cf-wrap') : null;
+  const container = form ? (form.parentElement || root) : root;
+  let flash = container.querySelector ? container.querySelector('.cf-flash') : null;
+  if (!flash && form) {
+    flash = form.nextElementSibling && form.nextElementSibling.classList && form.nextElementSibling.classList.contains('cf-flash')
+      ? form.nextElementSibling
+      : null;
+  }
+  if (!flash) return;
+  flash.className = 'cf-flash err';
+  flash.setAttribute('role', 'alert');
+  flash.setAttribute('aria-live', 'assertive');
+  flash.textContent = 'Hi ha canvis sense desar. Si tanques, es perdran els canvis del formulari actiu. Torna a pitjar TORNAR o la X per tancar.';
+  flash.style.display = 'block';
+}
+
+function canCloseDirtyTaskFormWithWarning(scope) {
+  const root = scope || document;
+  if (!root || !isTaskFormDirty(root)) return true;
+  const now = Date.now();
+  if (TASK_FORM_DISCARD_CONFIRM_UNTIL && now <= TASK_FORM_DISCARD_CONFIRM_UNTIL) {
+    TASK_FORM_DISCARD_CONFIRM_UNTIL = 0;
+    return true;
+  }
+  TASK_FORM_DISCARD_CONFIRM_UNTIL = now + 6000;
+  showTaskFormCloseWarning(root);
+  return false;
+}
+
+function requestTaskFormBackAction(button, actionCallback) {
+  const root = button && button.closest
+    ? button.closest('#qa-drop, .task-action-qepop, .email-action-qepop, #anchoredPanelQepop, #ovl, #ov')
+    : null;
+  if (!canCloseDirtyTaskFormWithWarning(root || document)) return false;
+  if (typeof actionCallback === 'function') actionCallback();
+  return false;
+}
+
+function requestCloseTaskCreatePopdown() {
+  const drop = document.getElementById('qa-drop');
+  if (!canCloseDirtyTaskFormWithWarning(drop)) return false;
+  closeTaskCreatePopdown();
+  return true;
+}
+
+function requestCloseOvWithWarning() {
+  const root = document.getElementById('ovl');
+  if (!canCloseDirtyTaskFormWithWarning(root)) return false;
+  closeOv();
+  return true;
+}
+
+function requestCloseOvFromBackdrop() {
+  const root = document.getElementById('ovl');
+  if (root && isTaskFormDirty(root)) return false;
+  closeOv();
+  return true;
+}
+
+function requestCloseTaskActionQepopWithWarning() {
+  const panel = document.querySelector('.task-action-qepop.open');
+  if (!canCloseDirtyTaskFormWithWarning(panel)) return false;
+  closeTaskActionQepop();
+  return true;
+}
+
+function requestCloseEmailActionQepopWithWarning() {
+  const panel = document.querySelector('.email-action-qepop.open');
+  if (!canCloseDirtyTaskFormWithWarning(panel)) return false;
+  closeEmailActionQepop();
+  return true;
+}
+
+function requestCloseAnchoredPanelQepopWithWarning(returnFocus = true) {
+  const panel = document.getElementById('anchoredPanelQepop');
+  if (!canCloseDirtyTaskFormWithWarning(panel)) return false;
+  closeAnchoredPanelQepop(returnFocus);
+  return true;
 }
 
 function closeTaskCreatePopdown() {
@@ -466,6 +608,11 @@ document.addEventListener('click', function(ev) {
   const trigger = lastCreateButton;
   const clickedTrigger = trigger && trigger.contains && trigger.contains(ev.target);
   if (!drop.contains(ev.target) && !clickedTrigger) {
+    if (isTaskFormDirty(drop)) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      return;
+    }
     closeTaskCreatePopdown();
   }
 });
@@ -3192,6 +3339,7 @@ try {
 <!-- === TaskFlow V300: Email operational icons and task type marker === -->
 <style>
 /* V300: task type marker between checkbox and title. */
+/* V300: task type marker between checkbox and title. */
 .task-type-ico{
   width:16px;
   height:16px;
@@ -3200,9 +3348,18 @@ try {
   justify-content:center;
   flex:0 0 16px;
   margin-top:0;
-  font-size:12px;
-  line-height:1;
-  opacity:.78;
+  color:var(--ac);
+  opacity:1;
+}
+.task-type-ico svg{
+  width:16px;
+  height:16px;
+  display:block;
+  stroke:currentColor;
+  fill:none;
+  stroke-width:1.6;
+  stroke-linecap:round;
+  stroke-linejoin:round;
 }
 /* V300: email card uses the same two-row icon grid as task cards. */
 .email-active-card .email-task-ir{
@@ -3247,6 +3404,34 @@ try {
   width:auto !important;
   max-width:min(100%,260px) !important;
 }
+
+/* === V321: task type icons match rendercard email envelope style === */
+.email-active-title::before{
+  content:none !important;
+  display:none !important;
+}
+.email-active-title .email-title-mail-ico{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  flex:0 0 auto;
+  color:currentColor;
+}
+.task-type-ico{
+  color:var(--t2) !important;
+  opacity:1 !important;
+}
+.task-type-ico svg{
+  width:16px !important;
+  height:16px !important;
+  stroke:currentColor !important;
+  fill:none !important;
+  stroke-width:1.3 !important;
+  stroke-linecap:round !important;
+  stroke-linejoin:round !important;
+  opacity:.72 !important;
+}
+
 </style>
 <!-- === END TaskFlow V314 === -->
 
@@ -3375,14 +3560,14 @@ try {
 
 <div class="content" id="cnt" tabindex="-1"></div>
 <!-- OVERLAY -->
-<div class="bk" id="bk" onclick="closeOv()"></div>
+<div class="bk" id="bk" onclick="return requestCloseOvFromBackdrop()"></div>
 <div class="ov" id="ov" role="dialog" aria-modal="true" aria-labelledby="ovt" aria-describedby="ovs">
  <div class="ovh">
   <div>
    <div class="ovt" id="ovt"></div>
    <div class="ovs" id="ovs"></div>
   </div>
-  <button class="ovcl" onclick="closeOv()">×</button>
+  <button class="ovcl" onclick="return requestCloseOvWithWarning()">×</button>
  </div>
  <div class="ovl" id="ovl" tabindex="-1"></div>
 </div>
@@ -4457,7 +4642,7 @@ function enhanceRenderedTaskCards() {
           <span class="task-rel-chip task-rel-chip-email" title="${escapeHtml(e.subject || '')}">
             <span class="task-rel-ico" aria-hidden="true">🔗</span><span class="task-rel-text">${escapeHtml(e.subject || tr('NO_SUBJECT'))}</span>
           </span>
-          ${selectedTaskIds.has(task.task_id) && isActiveLinkedEmail ? `<a href="#" class="email-unlink-link email-unlink-x" title="${escapeHtml(tr('UNLINK_EMAIL'))}" aria-label="${escapeHtml(tr('UNLINK_EMAIL'))}" onclick="event.preventDefault();event.stopPropagation();unlinkActiveEmailFromTask('${task.task_id}')">×</a>` : ''}
+          ${selectedTaskIds.has(task.task_id) && isActiveLinkedEmail && getTaskTypeValue(task) !== 'email' ? `<a href="#" class="email-unlink-link email-unlink-x" title="${escapeHtml(tr('UNLINK_EMAIL'))}" aria-label="${escapeHtml(tr('UNLINK_EMAIL'))}" onclick="event.preventDefault();event.stopPropagation();unlinkActiveEmailFromTask('${task.task_id}')">×</a>` : ''}
           <a href="#" class="email-unlink-link email-open-link" title="${escapeHtml(tr('OPEN_OUTLOOK'))}" aria-label="${escapeHtml(tr('OPEN_OUTLOOK'))}" onclick="event.preventDefault();event.stopPropagation();openEmailInOutlookWeb('${e.email_id}')">↗</a>
         </span>
       </div>
@@ -5027,7 +5212,7 @@ function renderCard(t) {
       <div class="cr1">
         <div class="ck${t.status==='completed' ? ' dk' : ''}" data-focus-key="chk-${t.task_id}" tabindex="0" onclick="event.stopPropagation();toggleDone('${t.task_id}')" title="${t.status==='completed' ? tr('ST_UNDO') : tr('ST_DONE')}">${t.status==='completed' ? IC.chk : ''}</div>
         <span class="task-type-ico" title="${escapeHtml(getTaskTypeLabel(t))}" aria-label="${escapeHtml(getTaskTypeLabel(t))}">${getTaskTypeIcon(t)}</span>
-        ${t.recurGroupId ? `<img src="data:image/png;base64,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" style="width:11px;height:11px;object-fit:contain;opacity:.6;flex-shrink:0;margin-top:2px" title="Tasca recurrent" alt="">` : ''}<span class="ctit${t.status==='completed' ? ' dtit' : ''}">${escapeHtml(t.title)}</span>
+        ${t.recurGroupId ? `<span class="task-type-ico" title="Tasca recurrent" aria-label="Tasca recurrent">${getTaskRecurIcon()}</span>` : ''}<span class="ctit${t.status==='completed' ? ' dtit' : ''}">${escapeHtml(t.title)}</span>
       </div>
       <div class="ir">${c1}${c2}${c3}${c4}${c5}${c6}${c7}${c8}</div>
       <button class="cedit" data-focus-key="edt-${t.task_id}" onclick="event.stopPropagation();openTaskCardActions('${t.task_id}',this)" title="${tr('QUICK_ACTIONS')}" style="font-size:16px;font-weight:700;color:var(--ac)">＋</button>
@@ -6006,10 +6191,23 @@ function getTaskTypeValue(task) {
 
 function getTaskTypeIcon(task) {
   const type = getTaskTypeValue(task);
-  if (type === 'email') return '✉️';
-  if (type === 'call' || type === 'trucada' || type === 'llamada') return '📞';
-  if (type === 'meeting' || type === 'reunio' || type === 'reunión') return '📅';
-  return '✓';
+  const svgAttrs = 'viewBox="0 0 16 16" aria-hidden="true" focusable="false"';
+  if (type === 'email') {
+    return `<svg ${svgAttrs}><rect x="2.5" y="4" width="11" height="8" rx="1.8"/><path d="M3 4.6l5 4.1 5-4.1"/></svg>`;
+  }
+  if (type === 'call' || type === 'trucada' || type === 'llamada') {
+    return `<svg ${svgAttrs}><path d="M5.2 3.1l1.1 2.2c.2.4.1.8-.2 1.1l-.8.7c.8 1.5 2.1 2.8 3.6 3.6l.7-.8c.3-.3.7-.4 1.1-.2l2.2 1.1c.4.2.6.7.4 1.1-.3 1-1.2 1.6-2.2 1.5-4.3-.3-7.9-3.9-8.2-8.2-.1-1 .5-1.9 1.5-2.2.4-.1.8.1 1 .5z"/></svg>`;
+  }
+  if (type === 'meeting' || type === 'reunio' || type === 'reunión') {
+    return `<svg ${svgAttrs}><rect x="3" y="4" width="10" height="9" rx="1.8"/><path d="M3 6.7h10"/><path d="M5.4 3.1v2.1"/><path d="M10.6 3.1v2.1"/><path d="M5.6 9h1.1"/><path d="M9.3 9h1.1"/></svg>`;
+  }
+  return `<svg ${svgAttrs}><rect x="3" y="3" width="10" height="10" rx="2"/><path d="M5.3 8.2l1.8 1.8 3.7-4"/></svg>`;
+}
+
+
+
+function getTaskRecurIcon() {
+  return '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M13 7a5 5 0 1 0 0 2"/><path d="M13 4v3h-3"/></svg>';
 }
 
 function getTaskTypeLabel(task) {
@@ -6306,7 +6504,7 @@ function renderEmailPanel() {
   if (ae.isOutlookLoading) {
     const mailIco = '<svg width="13" height="11" viewBox="0 0 13 11" fill="none" style="flex-shrink:0;margin-top:2px;opacity:.55"><rect x=".65" y=".65" width="11.7" height="9.7" rx="1.35" stroke="currentColor" stroke-width="1.3"/><path d="M.65 2.6l5.85 3.9 5.85-3.9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>';
     panel.innerHTML = `<div style="padding:6px 10px 5px">
-      <div class="email-active-title">${tr('EMAIL_ACTIVE_TITLE')}</div>
+      <div class="email-active-title"><span class="email-title-mail-ico" aria-hidden="true">${mailIco}</span><span>${tr('EMAIL_ACTIVE_TITLE')}</span></div>
       <div class="card email-active-card">
         <div class="ci">
           <div class="cr1">
@@ -6337,7 +6535,7 @@ function renderEmailPanel() {
   const buildTaskLinkActions = task => `
     <span class="email-link-actions" aria-label="${escapeHtml(tr('TASK_LINKED_ARIA'))}">
       <a href="#" class="task-rel-chip" data-linked-task-id="${task.task_id}" onmouseenter="setEmailLinkedTaskHover('${task.task_id}', true)" onmouseleave="setEmailLinkedTaskHover('${task.task_id}', false)" onfocus="setEmailLinkedTaskHover('${task.task_id}', true)" onblur="setEmailLinkedTaskHover('${task.task_id}', false)" onclick="event.preventDefault();openTaskById('${task.task_id}')" title="${escapeHtml(task.title || '')}"><span class="task-rel-ico" aria-hidden="true">🔗</span><span class="task-rel-text">${escapeHtml(task.title || '')}</span></a>
-      <a href="#" class="email-unlink-link email-unlink-x" onclick="event.preventDefault();unlinkActiveEmailFromTask('${task.task_id}')" title="${escapeHtml(tr('UNLINK_EMAIL_FROM_TASK'))}" aria-label="${escapeHtml(tr('UNLINK_EMAIL'))}">×</a>
+      ${getTaskTypeValue(task) !== 'email' ? `<a href="#" class="email-unlink-link email-unlink-x" onclick="event.preventDefault();unlinkActiveEmailFromTask('${task.task_id}')" title="${escapeHtml(tr('UNLINK_EMAIL_FROM_TASK'))}" aria-label="${escapeHtml(tr('UNLINK_EMAIL'))}">×</a>` : ''}
     </span>`;
 
   const buildUnlinkedTaskAction = () => `
@@ -6378,7 +6576,7 @@ function renderEmailPanel() {
     : '';
 
   panel.innerHTML = `<div style="padding:6px 10px 5px">
-    <div class="email-active-title">${tr('EMAIL_ACTIVE_TITLE')}</div>
+    <div class="email-active-title"><span class="email-title-mail-ico" aria-hidden="true">${mailIco}</span><span>${tr('EMAIL_ACTIVE_TITLE')}</span></div>
     <div class="card email-active-card">
       <div class="ci">
         <div class="cr1">
@@ -7536,7 +7734,7 @@ function renderTaskForm(formConfig) {
       <textarea class="cf-textarea small" id="cf-comment" placeholder="${tr('CF_COMMENT_PH')}">${escapeHtml(values.comment || '')}</textarea>
     </div>
     <div class="cf-actions">
-      <button class="cf-btn" onclick="${formConfig.backAction}">${tr('CF_BACK')}</button>
+      <button class="cf-btn" onclick="return requestTaskFormBackAction(this, function(){ ${formConfig.backAction}; })">${tr('CF_BACK')}</button>
       <button class="cf-btn primary" onclick="${formConfig.saveAction}">${formConfig.saveLabel}</button>
     </div>
   </div>
@@ -7549,6 +7747,7 @@ function mountTaskForm(formConfig) {
   document.getElementById('ovt').textContent = formConfig.overlayTitle;
   document.getElementById('ovs').textContent = formConfig.overlaySubtitle || '';
   document.getElementById('ovl').innerHTML = renderTaskForm(formConfig);
+  captureTaskFormInitialState(document.getElementById('ovl'));
   document.getElementById('ov').classList.add('open');
   document.getElementById('bk').classList.add('open');
   onRepeatToggle();
@@ -9438,7 +9637,7 @@ function openAnchoredPanelQepop(triggerEl, title, subtitle, contentHtml) {
         <div class="anchored-qepop-title">${escapeHtml(title || '')}</div>
         ${subtitle ? `<div class="anchored-qepop-sub">${escapeHtml(subtitle)}</div>` : ''}
       </div>
-      <button type="button" class="anchored-qepop-close" onclick="closeAnchoredPanelQepop(true)" aria-label="${escapeHtml(tr('BTN_CLOSE') || 'Tancar')}">×</button>
+      <button type="button" class="anchored-qepop-close" onclick="return requestCloseAnchoredPanelQepopWithWarning(true)" aria-label="${escapeHtml(tr('BTN_CLOSE') || 'Tancar')}">×</button>
     </div>
     <div class="anchored-qepop-body">${contentHtml || ''}</div>
   `;
@@ -9478,7 +9677,14 @@ if (!window.__anchoredPanelQepopHandlersBound) {
     const trigger = ANCHORED_QEPOP_LAST_TRIGGER;
     const clickedTrigger = trigger && trigger.contains && trigger.contains(ev.target);
     if (panel && panel.classList.contains('open')) {
-      if (!panel.contains(ev.target) && !clickedTrigger) closeAnchoredPanelQepop(false);
+      if (!panel.contains(ev.target) && !clickedTrigger) {
+        if (isTaskFormDirty(panel)) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          return;
+        }
+        closeAnchoredPanelQepop(false);
+      }
     }
     if (prefs && prefs.classList.contains('prefs-qepop') && prefs.classList.contains('open')) {
       if (!prefs.contains(ev.target) && !clickedTrigger) closePrefs(false);
@@ -10100,7 +10306,14 @@ document.addEventListener('click', e => {
  // Comentarios en castellano: si cerramos aquí, openTaskCardActions no puede detectar sameTaskOpen y vuelve a abrir el menú.
  const taskQuickButton = e.target && e.target.closest ? e.target.closest('.cedit') : null;
  if (taskQuickButton) return;
- if (drop && drop.classList.contains('open') && !drop.contains(e.target) && panel && !panel.contains(e.target)) closeQaDrop();
+ if (drop && drop.classList.contains('open') && !drop.contains(e.target) && panel && !panel.contains(e.target)) {
+   if (drop.dataset.mode === 'task-create' && isTaskFormDirty(drop)) {
+     e.preventDefault();
+     e.stopPropagation();
+     return;
+   }
+   closeQaDrop();
+ }
 }, true);
 
 // =============================================================================
@@ -11151,6 +11364,7 @@ function removeTodayHeaderV175() {
 
   function closeOpenQepops() {
     document.querySelectorAll('.qepop.open').forEach(function (panel) {
+      if (isTaskFormDirty(panel)) return;
       panel.classList.remove('open');
       panel.setAttribute('aria-hidden', 'true');
     });
@@ -11215,10 +11429,11 @@ function removeTodayHeaderV175() {
     try { if (typeof closeQaDrop === 'function') closeQaDrop(); } catch (e) {}
     closeOpenQepops();
     const id = 'email-' + actionKey + '-qepop';
-    const panel = ensureActionQepop(id, 'email-action-qepop', titleText, subtitleText, 'closeEmailActionQepop()');
+    const panel = ensureActionQepop(id, 'email-action-qepop', titleText, subtitleText, 'requestCloseEmailActionQepopWithWarning()');
     const body = document.getElementById(id + '-body');
     if (!body) return;
     body.innerHTML = bodyHtml || '';
+    captureTaskFormInitialState(panel);
     positionPanel(panel, anchor);
     panel.classList.add('open');
     panel.setAttribute('aria-hidden', 'false');
@@ -11282,10 +11497,11 @@ function removeTodayHeaderV175() {
     try { if (typeof closeQaDrop === 'function') closeQaDrop(); } catch (e) {}
     closeOpenQepops();
     const id = 'task-' + actionKey + '-qepop-' + String(taskId).replace(/[^a-zA-Z0-9_-]/g, '_');
-    const panel = ensureActionQepop(id, 'task-action-qepop', titleText, subtitleText, 'closeTaskActionQepop()');
+    const panel = ensureActionQepop(id, 'task-action-qepop', titleText, subtitleText, 'requestCloseTaskActionQepopWithWarning()');
     const body = document.getElementById(id + '-body');
     if (!body) return;
     body.innerHTML = bodyHtml || '';
+    captureTaskFormInitialState(panel);
     positionPanel(panel, anchor);
     panel.classList.add('open');
     panel.setAttribute('aria-hidden', 'false');
@@ -11420,11 +11636,22 @@ function removeTodayHeaderV175() {
     if (event.target.closest && event.target.closest('#qa-drop')) return;
     const card = event.target.closest ? event.target.closest('.card[data-task-id]') : null;
     if (card) return;
+    if (isTaskFormDirty(openTaskPanel)) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
     closeTaskActionQepop();
   }, true);
 
   document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape' && document.querySelector('.task-action-qepop.open')) {
+      const openTaskPanel = document.querySelector('.task-action-qepop.open');
+      if (isTaskFormDirty(openTaskPanel)) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
       event.preventDefault();
       closeTaskActionQepop();
     }
