@@ -11,8 +11,8 @@
  <DefaultLocale>ca-ES</DefaultLocale>
  <DisplayName DefaultValue="TaskFlow"/>
  <Description DefaultValue="Gestio de tasques directament des d Outlook."/>
- <IconUrl DefaultValue="https://github.com/xcroix/TaskFlow_Outlook/Sobre_64x64.png"/>
- <HighResolutionIconUrl DefaultValue="https://github.com/xcroix/TaskFlow_Outlook/Sobre_128x128.png"/>
+ <IconUrl DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/Sobre_64x64.png"/>
+ <HighResolutionIconUrl DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/Sobre_128x128.png"/>
  <SupportUrl DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/index.html"/>
  <Hosts>
  <Host Name="Mailbox"/>
@@ -74,10 +74,10 @@
  </Hosts>
  <Resources>
  <bt:Images>
- <bt:Image id="Icon.16x16" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-16.png"/>
- <bt:Image id="Icon.32x32" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-32.png"/>
- <bt:Image id="Icon.80x80" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-80.png"/>
- <bt:Image id="Icon.128x128" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-128.png"/>
+ <bt:Image id="Icon.128x128" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/Sobre_16x16.png"/>
+ <bt:Image id="Icon.128x128" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/Sobre_32x32.png"/>
+ <bt:Image id="Icon.128x128" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/Sobre_64x64.png"/>
+ <bt:Image id="Icon.128x128" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/Sobre_128x128.png"/>
  </bt:Images>
  <bt:Urls>
  <bt:Url id="TaskFlow.App.Url" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/index.html"/>
@@ -131,10 +131,10 @@
  </Hosts>
  <Resources>
  <bt:Images>
- <bt:Image id="Icon.16x16" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-16.png"/>
- <bt:Image id="Icon.32x32" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-32.png"/>
- <bt:Image id="Icon.80x80" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-80.png"/>
- <bt:Image id="Icon.128x128" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/assets/icon-128.png"/>
+ <bt:Image id="Icon.128x128" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/Sobre_16x16.png"/>
+ <bt:Image id="Icon.128x128" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/Sobre_32x32.png"/>
+ <bt:Image id="Icon.128x128" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/Sobre_64x64.png"/>
+ <bt:Image id="Icon.128x128" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/Sobre_128x128.png"/>
  </bt:Images>
  <bt:Urls>
  <bt:Url id="TaskFlow.App.Url" DefaultValue="https://xcroix.github.io/TaskFlow_Outlook/index.html"/>
